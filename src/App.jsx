@@ -100,7 +100,7 @@ export default function AvgrunnenApp() {
 
         <TabsContent value="regler" className="mt-4">
           <iframe
-            src="https://docs.google.com/document/d/your-doc-id-here/preview"
+            src="https://docs.google.com/document/d/1DzGr01yskVG8kfF8ubtbCikPLGAiUiXLyd2faI6u6gY"
             className="w-full h-[500px] border"
             title="Regler"
           ></iframe>
