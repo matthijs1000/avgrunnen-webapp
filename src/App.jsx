@@ -21,12 +21,27 @@ const database = getDatabase(app);
 export default function AvgrunnenApp() {
   const [cards, setCards] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [playedCards, setPlayedCards] = useState([]);
 
   useEffect(() => {
     const cardsRef = ref(database, "game/cards");
     const unsubscribe = onValue(cardsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) setCards(data);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const playedRef = ref(database, "game/played");
+    const unsubscribe = onValue(playedRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const sorted = Object.entries(data)
+          .sort((a, b) => a[0] - b[0])
+          .map(([, value]) => value);
+        setPlayedCards(sorted);
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -63,6 +78,17 @@ export default function AvgrunnenApp() {
             </div>
           </CardContent>
         </Card>
+
+        {playedCards.length > 0 && (
+          <div className="mt-6">
+            <h2 className="text-center font-bold">Spilte kort</h2>
+            <ul className="mt-2 space-y-1 text-sm">
+              {playedCards.map((card, i) => (
+                <li key={i} className="text-center text-gray-600">{card}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </TabsContent>
 
       <TabsContent value="kart" className="mt-4">
