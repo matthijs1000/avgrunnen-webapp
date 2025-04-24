@@ -375,24 +375,45 @@ export default function ScenekortTab() {
 
   // Initial setup
   useEffect(() => {
+    let isMounted = true;
+    
     const setup = async () => {
+      if (!gameId || !playerName) return;
+      
       try {
         setIsLoading(true);
         console.log('🎬 Starting scene cards setup...');
         
-        // First, ensure scene cards are initialized
-        await initializeSceneCardsIfNeeded();
-        console.log('✅ Scene cards initialization check complete');
+        // First, check if scene cards exist
+        const sceneCardsRef = ref(db, `games/${gameId}/sceneCards`);
+        const sceneCardsSnap = await get(sceneCardsRef);
         
-        // Then clean up any case mismatches
+        if (!sceneCardsSnap.exists()) {
+          console.log('🎲 No scene cards found, initializing...');
+          // Fetch and initialize scene cards
+          const sheetCards = await fetchSceneCards();
+          if (sheetCards.length === 0) {
+            throw new Error('No scene cards found in the sheet');
+          }
+          
+          await set(sceneCardsRef, {
+            cards: sheetCards,
+            hands: {}
+          });
+          console.log('✅ Scene cards initialized');
+        }
+        
+        // Clean up any case mismatches
         await cleanupPlayerIds();
         console.log('✅ Player ID cleanup complete');
         
-        // Finally load and fill the hand
+        // Load current state
         const [cardsSnap, handSnap] = await Promise.all([
           get(ref(db, `games/${gameId}/sceneCards/cards`)),
           get(ref(db, `games/${gameId}/sceneCards/hands/${playerName}`))
         ]);
+        
+        if (!isMounted) return;
         
         const cards = cardsSnap.val() || [];
         const playerHand = handSnap.val() || [];
@@ -409,15 +430,21 @@ export default function ScenekortTab() {
         setError(null);
       } catch (err) {
         console.error('Setup failed:', err);
-        setError(err.message);
+        if (isMounted) {
+          setError(err.message);
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
-    if (gameId && playerName) {
-      setup();
-    }
+    setup();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [gameId, playerName]);
 
   if (error) {
