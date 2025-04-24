@@ -377,13 +377,40 @@ export default function ScenekortTab() {
   useEffect(() => {
     const setup = async () => {
       try {
+        setIsLoading(true);
+        console.log('🎬 Starting scene cards setup...');
+        
+        // First, ensure scene cards are initialized
         await initializeSceneCardsIfNeeded();
+        console.log('✅ Scene cards initialization check complete');
+        
+        // Then clean up any case mismatches
         await cleanupPlayerIds();
-        await loadSceneCards(); // This will now automatically fill the hand
-        setIsLoading(false);
+        console.log('✅ Player ID cleanup complete');
+        
+        // Finally load and fill the hand
+        const [cardsSnap, handSnap] = await Promise.all([
+          get(ref(db, `games/${gameId}/sceneCards/cards`)),
+          get(ref(db, `games/${gameId}/sceneCards/hands/${playerName}`))
+        ]);
+        
+        const cards = cardsSnap.val() || [];
+        const playerHand = handSnap.val() || [];
+        
+        setSceneCards(cards);
+        setHand(playerHand);
+        
+        // If hand is not full, fill it
+        if (playerHand.length < SCENE_HAND_SIZE) {
+          console.log(`🎴 Hand needs ${SCENE_HAND_SIZE - playerHand.length} more cards, filling...`);
+          await loadSceneCards();
+        }
+        
+        setError(null);
       } catch (err) {
         console.error('Setup failed:', err);
         setError(err.message);
+      } finally {
         setIsLoading(false);
       }
     };
