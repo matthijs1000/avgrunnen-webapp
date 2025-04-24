@@ -5,6 +5,38 @@ export const SHEET_NAME = 'Cards';
 // Required columns in the sheet
 const REQUIRED_COLUMNS = ['id', 'title', 'text'];
 
+// Function to parse CSV properly handling quoted fields
+function parseCSVRow(row) {
+  const fields = [];
+  let field = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < row.length; i++) {
+    const char = row[i];
+    
+    if (char === '"') {
+      if (inQuotes && row[i + 1] === '"') {
+        // Handle escaped quotes
+        field += '"';
+        i++;
+      } else {
+        // Toggle quote mode
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      // End of field
+      fields.push(field.trim());
+      field = '';
+    } else {
+      field += char;
+    }
+  }
+  
+  // Add the last field
+  fields.push(field.trim());
+  return fields;
+}
+
 // Function to validate card data
 function validateCard(card, rowIndex) {
   const errors = [];
@@ -38,12 +70,8 @@ export async function fetchCardsFromSheet() {
     const text = await response.text();
     console.log('📝 Raw sheet data:', text.slice(0, 200) + '...');
     
-    // Parse CSV data
-    const rows = text.split('\n').map(row => 
-      row.split(',').map(cell => 
-        cell.replace(/^"|"$/g, '').trim() // Remove quotes and trim whitespace
-      )
-    );
+    // Parse CSV data using proper quote handling
+    const rows = text.split('\n').map(row => parseCSVRow(row));
     
     if (rows.length < 2) {
       throw new Error('Sheet is empty or has no data rows');
