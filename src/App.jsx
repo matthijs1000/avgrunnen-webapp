@@ -303,18 +303,6 @@ export default function AvgrunnenApp() {
             )}
           </TabsContent>
 
-          <TabsContent value="kart" className="mt-4">
-            <div className="text-center">
-              <p className="mb-2">Lokasjoner (eks):</p>
-              <ul className="list-disc list-inside">
-                <li>Det forlatte hotellet</li>
-                <li>Tårnet i skogen</li>
-                <li>Den sunkne byen</li>
-              </ul>
-              <img src="/map-placeholder.png" alt="Kart" className="mt-4 w-full rounded" />
-            </div>
-          </TabsContent>
-
           <TabsContent value="regler" className="mt-4">
             <RulesTab />
           </TabsContent>
@@ -337,7 +325,6 @@ export default function AvgrunnenApp() {
           <TabsList className="fixed bottom-0 left-0 right-0 flex justify-around bg-white border-t shadow-md">
             <TabsTrigger value="dramakort">Dramakort</TabsTrigger>
             <TabsTrigger value="scenekort">Scenekort</TabsTrigger>
-            <TabsTrigger value="kart">Kart</TabsTrigger>
             <TabsTrigger value="regler">Regler</TabsTrigger>
             <TabsTrigger value="roller">Roller</TabsTrigger>
             <TabsTrigger value="regissor">Regissør</TabsTrigger>
