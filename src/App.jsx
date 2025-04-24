@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import NameAndGame from "./NameAndGame";
 import KortTabFirebase from "./KortTabFirebase";
 import RulesTab from "./RulesTab";
+import RegissorTab from "./RegissorTab";
 
 export default function AvgrunnenApp() {
   const [ready, setReady] = useState(false);
@@ -27,9 +28,15 @@ export default function AvgrunnenApp() {
       {!ready ? (
         <NameAndGame onSubmit={handleSubmit} />
       ) : (
-        <Tabs defaultValue="kort" className="w-full max-w-md mx-auto p-4">
-          <TabsContent value="kort">
+        <Tabs defaultValue="dramakort" className="w-full max-w-md mx-auto p-4">
+          <TabsContent value="dramakort">
             <KortTabFirebase />
+          </TabsContent>
+
+          <TabsContent value="scenekort" className="mt-4">
+            <div className="text-center">
+              <p className="mb-2">Scenekort kommer snart...</p>
+            </div>
           </TabsContent>
 
           <TabsContent value="kart" className="mt-4">
@@ -57,24 +64,12 @@ export default function AvgrunnenApp() {
           </TabsContent>
 
           <TabsContent value="regissor" className="mt-4">
-            <div className="text-left px-2">
-              <h2 className="text-lg font-bold mb-2">Føringer:</h2>
-              <ul className="list-disc list-inside">
-                <li>Mørk og mystisk stemning</li>
-                <li>Slow horror</li>
-                <li>Ingen actionklisjeer</li>
-              </ul>
-              <h2 className="text-lg font-bold mt-4 mb-2">Checklist:</h2>
-              <ul className="list-inside">
-                <li><input type="checkbox" /> Alle har spilt et kort</li>
-                <li><input type="checkbox" /> Trusselen er introdusert</li>
-                <li><input type="checkbox" /> Akten er avsluttet</li>
-              </ul>
-            </div>
+            <RegissorTab />
           </TabsContent>
 
           <TabsList className="fixed bottom-0 left-0 right-0 flex justify-around bg-white border-t shadow-md">
-            <TabsTrigger value="kort">Kort</TabsTrigger>
+            <TabsTrigger value="dramakort">Dramakort</TabsTrigger>
+            <TabsTrigger value="scenekort">Scenekort</TabsTrigger>
             <TabsTrigger value="kart">Kart</TabsTrigger>
             <TabsTrigger value="regler">Regler</TabsTrigger>
             <TabsTrigger value="roller">Roller</TabsTrigger>

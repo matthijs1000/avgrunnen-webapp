@@ -374,7 +374,8 @@ export default function KortTabFirebase() {
       await set(ref(db, `games/${gameId}`), {
         cards: sheetCards,
         discard: [],
-        hands: {}
+        hands: {},
+        played: {} // Reset played cards history
       });
       console.log('🔄 Reset game with fresh cards from sheet');
       await loadHand();
@@ -487,11 +488,11 @@ export default function KortTabFirebase() {
         {hand.map((card) => (
           <li 
             key={card.id} 
-            className="p-4 bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-200 border border-gray-100"
+            className="card"
           >
-            <h3 className="text-lg font-bold text-gray-800 mb-2">{card.title}</h3>
+            <h3 className="text-lg font-bold text-white mb-2">{card.title}</h3>
             {card.text && (
-              <p className="text-sm text-gray-600 leading-relaxed mb-3">
+              <p className="text-sm text-gray-300 leading-relaxed mb-3">
                 {card.text}
               </p>
             )}
@@ -512,14 +513,13 @@ export default function KortTabFirebase() {
               <button 
                 onClick={() => playCard(card.id)}
                 disabled={actioningCards.has(card.id)}
-                className="p-2 text-sm font-medium rounded-md bg-green-100 text-green-700 hover:bg-green-200 disabled:bg-gray-100 disabled:text-gray-400"
               >
                 {actioningCards.has(card.id) ? 'Spiller...' : 'Spill'}
               </button>
               <button 
                 onClick={() => discardCard(card.id)}
                 disabled={actioningCards.has(card.id)}
-                className="p-2 text-sm font-medium rounded-md bg-red-100 text-red-600 hover:bg-red-200 disabled:bg-gray-100 disabled:text-gray-400"
+                className="discard"
               >
                 {actioningCards.has(card.id) ? 'Kaster...' : 'Kast'}
               </button>

@@ -1,3 +1,46 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.card {
+  background-color: #1c1c1c;
+  border: 1px solid #333;
+  border-radius: 12px;
+  box-shadow: 0 0 12px rgba(0,0,0,0.5);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  transition: transform 0.2s ease;
+}
+
+.card:hover {
+  transform: scale(1.02);
+}
+
+.card button {
+  background-color: #5ebf5b;
+  color: #0e0e0e;
+  border: none;
+  padding: 0.5rem 1rem;
+  font-weight: bold;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.card button:hover {
+  background-color: #4aa54a;
+}
+
+.card button.discard {
+  background-color: #bf5b5b;
+}
+
+.card button.discard:hover {
+  background-color: #a54a4a;
+}
+
+.card button:disabled {
+  background-color: #4a4a4a;
+  color: #8a8a8a;
+  cursor: not-allowed;
+}

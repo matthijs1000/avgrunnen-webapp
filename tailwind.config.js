@@ -6,8 +6,14 @@ export default {
 	],
 	theme: {
 	  extend: {
-		colors: {
-		  background: '#e8f0ea',
+		fontFamily: {
+			cinzel: ['Cinzel', 'serif'],
+		  },
+		  colors: {
+			abyss: {
+			  900: '#0e0e0e',
+			  800: '#1c1c1c',
+			},
 		},
 		keyframes: {
 		  'slide-in': {
