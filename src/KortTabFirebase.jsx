@@ -22,6 +22,7 @@ export default function KortTabFirebase() {
   const [hand, setHand] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const playerName = localStorage.getItem('name');
   const gameId = localStorage.getItem('gameId');
@@ -107,8 +108,31 @@ export default function KortTabFirebase() {
 
         if (!discardedCard) return game;
 
+        // Move card to discard pile
         game.hands[playerName] = updatedHand;
         game.discard = [...(game.discard || []), discardedCard];
+
+        // Draw a new card immediately
+        const allCards = game.cards || [];
+        const playedOrHeldIds = new Set([
+          ...Object.values(game.hands || {}).flat().map(card => card.id),
+          ...(game.discard || []).map(card => card.id),
+        ]);
+        
+        const available = allCards.filter((card) => !playedOrHeldIds.has(card.id));
+
+        if (available.length === 0 && game.discard.length > 0) {
+          // If no cards available, shuffle discard back in (except for the card we just discarded)
+          const oldDiscard = game.discard.slice(0, -1); // All but the last card (which we just discarded)
+          available.push(...oldDiscard);
+          game.discard = [discardedCard]; // Keep only the just-discarded card
+        }
+
+        if (available.length > 0) {
+          const randomIndex = Math.floor(Math.random() * available.length);
+          const newCard = available[randomIndex];
+          game.hands[playerName] = [...updatedHand, newCard];
+        }
 
         console.log(`🗑️ Kaster kort: ${cardId}`);
         return game;
@@ -132,6 +156,25 @@ export default function KortTabFirebase() {
     } catch (err) {
       console.error('Failed to load hand:', err);
       setError('Kunne ikke laste inn hånden din. Prøv å laste siden på nytt.');
+    }
+  };
+
+  const resetGame = async () => {
+    setIsLoading(true);
+    try {
+      await set(ref(db, `games/${gameId}`), {
+        cards: initialCards,
+        discard: [],
+        hands: {}
+      });
+      console.log('🔄 Reset game to initial state');
+      await loadHand();
+      setShowResetConfirm(false);
+    } catch (err) {
+      console.error('Failed to reset game:', err);
+      setError('Kunne ikke tilbakestille spillet. Prøv igjen.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -186,13 +229,47 @@ export default function KortTabFirebase() {
               </li>
             ))}
           </ul>
-          <button 
-            onClick={drawCard}
-            disabled={isLoading}
-            className="w-full py-2 bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50"
-          >
-            {isLoading ? 'Trekker kort...' : 'Trekk kort'}
-          </button>
+          <div className="space-y-2">
+            <button 
+              onClick={drawCard}
+              disabled={isLoading}
+              className="w-full py-2 bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50"
+            >
+              {isLoading ? 'Trekker kort...' : 'Trekk kort'}
+            </button>
+            
+            <button 
+              onClick={() => setShowResetConfirm(true)}
+              className="w-full py-2 mt-4 bg-red-600 text-white rounded hover:bg-red-700"
+            >
+              Tilbakestill spill
+            </button>
+          </div>
+
+          {showResetConfirm && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-lg p-6 max-w-sm w-full">
+                <h3 className="text-lg font-bold mb-4">Bekreft tilbakestilling</h3>
+                <p className="mb-6 text-gray-600">
+                  Er du sikker på at du vil tilbakestille spillet? Dette vil fjerne alle kort fra alle spilleres hender og stokke kortstokken på nytt.
+                </p>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={() => setShowResetConfirm(false)}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                  >
+                    Avbryt
+                  </button>
+                  <button
+                    onClick={resetGame}
+                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                  >
+                    Tilbakestill
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
