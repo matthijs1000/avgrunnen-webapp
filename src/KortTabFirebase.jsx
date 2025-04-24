@@ -6,6 +6,11 @@ import {
   set,
   runTransaction,
   child,
+  push,
+  onValue,
+  query,
+  orderByChild,
+  limitToLast,
 } from 'firebase/database';
 
 // Initial cards deck
@@ -18,17 +23,42 @@ const initialCards = [
   { id: '6', title: 'Et nytt valg', text: 'Du står ved en korsvei. Du må velge – og velger feil.' }
 ];
 
+const HAND_SIZE = 5;
+const NOTIFICATION_LIMIT = 5; // Number of notifications to show
+
 export default function KortTabFirebase() {
   const [hand, setHand] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [notifications, setNotifications] = useState([]);
 
   const playerName = localStorage.getItem('name');
   const gameId = localStorage.getItem('gameId');
 
   console.log('🧠 Spiller:', playerName);
   console.log('🧠 Aktiv gameId:', gameId);
+
+  // Subscribe to played cards notifications
+  useEffect(() => {
+    const playedRef = query(
+      ref(db, `games/${gameId}/played`),
+      orderByChild('timestamp'),
+      limitToLast(NOTIFICATION_LIMIT)
+    );
+
+    const unsubscribe = onValue(playedRef, (snapshot) => {
+      const played = snapshot.val();
+      if (played) {
+        const notificationsList = Object.values(played)
+          .sort((a, b) => b.timestamp - a.timestamp)
+          .slice(0, NOTIFICATION_LIMIT);
+        setNotifications(notificationsList);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [gameId]);
 
   // Initialize game if needed
   const initializeGameIfNeeded = async () => {
@@ -48,7 +78,7 @@ export default function KortTabFirebase() {
     }
   };
 
-  const drawCard = async () => {
+  const fillHand = async () => {
     setIsLoading(true);
     try {
       await runTransaction(ref(db, `games/${gameId}`), (game) => {
@@ -56,41 +86,67 @@ export default function KortTabFirebase() {
 
         const allCards = game.cards || [];
         const discard = game.discard || [];
-        const playerHand = game.hands?.[playerName] || [];
+        const allHands = game.hands || {};
 
+        // Ensure all hands are arrays
+        Object.keys(allHands).forEach(player => {
+          allHands[player] = Array.isArray(allHands[player]) ? allHands[player] : [];
+        });
+
+        // Get current hand
+        const currentHand = Array.isArray(game.hands?.[playerName]) ? game.hands[playerName] : [];
+        const cardsNeeded = HAND_SIZE - currentHand.length;
+
+        if (cardsNeeded <= 0) {
+          console.log('✋ Hånden er allerede full');
+          return game;
+        }
+
+        // Get all cards that are currently in play
         const playedOrHeldIds = new Set([
-          ...Object.values(game.hands || {}).flat().map(card => card.id),
-          ...(game.discard || []).map(card => card.id),
+          ...Object.values(allHands).flat().map(card => card.id),
+          ...(discard || []).map(card => card.id),
         ]);
         
-        const available = allCards.filter((card) => !playedOrHeldIds.has(card.id));
+        // Create a copy of all cards that we can modify
+        let availableCards = [...allCards];
 
-        console.log('▶️ Forsøker å trekke kort. Tilgjengelige kort:', available.length);
+        // Remove cards that are already in play
+        availableCards = availableCards.filter(card => !playedOrHeldIds.has(card.id));
 
-        if (available.length === 0 && discard.length > 0) {
+        console.log(`▶️ Forsøker å trekke ${cardsNeeded} kort. Tilgjengelige kort:`, availableCards.length);
+
+        if (availableCards.length === 0 && discard.length > 0) {
           console.log('♻️ Stokker discard tilbake i bunken');
-          available.push(...discard);
+          availableCards = [...discard];
           game.discard = [];
         }
 
-        if (available.length === 0) {
+        if (availableCards.length === 0) {
           console.warn('🚫 Ingen kort tilgjengelig');
           return game;
         }
 
-        const randomIndex = Math.floor(Math.random() * available.length);
-        const drawnCard = available[randomIndex];
+        // Shuffle the available cards
+        for (let i = availableCards.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [availableCards[i], availableCards[j]] = [availableCards[j], availableCards[i]];
+        }
+
+        // Take the first cardsNeeded cards
+        const newCards = availableCards.slice(0, cardsNeeded);
 
         game.hands = game.hands || {};
-        game.hands[playerName] = [...(game.hands[playerName] || []), drawnCard];
+        game.hands[playerName] = [...currentHand, ...newCards];
 
+        console.log(`🎴 Trakk ${newCards.length} kort`);
         return game;
       });
       
       await loadHand();
     } catch (err) {
-      console.error('Failed to draw card:', err);
-      setError('Kunne ikke trekke kort. Prøv igjen.');
+      console.error('Failed to fill hand:', err);
+      setError('Kunne ikke fylle hånden. Prøv igjen.');
     } finally {
       setIsLoading(false);
     }
@@ -102,7 +158,8 @@ export default function KortTabFirebase() {
       await runTransaction(ref(db, `games/${gameId}`), (game) => {
         if (!game || !game.hands?.[playerName]) return game;
 
-        const playerHand = game.hands[playerName] || [];
+        // Ensure we're working with arrays
+        const playerHand = Array.isArray(game.hands[playerName]) ? game.hands[playerName] : [];
         const updatedHand = playerHand.filter((c) => c.id !== cardId);
         const discardedCard = playerHand.find((c) => c.id === cardId);
 
@@ -114,8 +171,15 @@ export default function KortTabFirebase() {
 
         // Draw a new card immediately
         const allCards = game.cards || [];
+        const allHands = game.hands || {};
+
+        // Ensure all hands are arrays
+        Object.keys(allHands).forEach(player => {
+          allHands[player] = Array.isArray(allHands[player]) ? allHands[player] : [];
+        });
+
         const playedOrHeldIds = new Set([
-          ...Object.values(game.hands || {}).flat().map(card => card.id),
+          ...Object.values(allHands).flat().map(card => card.id),
           ...(game.discard || []).map(card => card.id),
         ]);
         
@@ -146,12 +210,52 @@ export default function KortTabFirebase() {
     }
   };
 
+  const playCard = async (cardId) => {
+    setIsLoading(true);
+    try {
+      await runTransaction(ref(db, `games/${gameId}`), (game) => {
+        if (!game || !game.hands?.[playerName]) return game;
+
+        const playerHand = Array.isArray(game.hands[playerName]) ? game.hands[playerName] : [];
+        const playedCard = playerHand.find((c) => c.id === cardId);
+        const updatedHand = playerHand.filter((c) => c.id !== cardId);
+
+        if (!playedCard) return game;
+
+        // Update the hand
+        game.hands[playerName] = updatedHand;
+
+        // Add to played cards with timestamp
+        game.played = game.played || {};
+        const newPlayedRef = push(ref(db, `games/${gameId}/played`));
+        game.played[newPlayedRef.key] = {
+          playerId: playerName,
+          card: playedCard,
+          timestamp: Date.now(),
+        };
+
+        console.log(`🎭 Spiller kort: ${cardId}`);
+        return game;
+      });
+
+      // Draw a new card automatically after playing
+      await fillHand();
+    } catch (err) {
+      console.error('Failed to play card:', err);
+      setError('Kunne ikke spille kortet. Prøv igjen.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const loadHand = async () => {
     try {
       const snap = await get(ref(db, `games/${gameId}/hands/${playerName}`));
-      const val = snap.val() || [];
-      console.log('✍️ Henter starthånd:', val);
-      setHand(val);
+      // Ensure we always have an array, even if Firebase returns an object or null
+      const val = snap.val();
+      const handArray = Array.isArray(val) ? val : (val ? Object.values(val) : []);
+      console.log('✍️ Henter starthånd:', handArray);
+      setHand(handArray);
       setError(null);
     } catch (err) {
       console.error('Failed to load hand:', err);
@@ -210,7 +314,26 @@ export default function KortTabFirebase() {
 
   return (
     <div className="p-4">
-      <h2 className="text-xl font-bold mb-4">Hånden din</h2>
+      <div className="mb-6 bg-black/5 rounded-lg p-4">
+        <h3 className="text-lg font-semibold mb-2">Siste hendelser</h3>
+        {notifications.length === 0 ? (
+          <p className="text-gray-500 italic">Ingen kort er spilt ennå</p>
+        ) : (
+          <ul className="space-y-2">
+            {notifications.map((notification) => (
+              <li 
+                key={notification.timestamp} 
+                className="text-sm bg-white p-2 rounded shadow-sm"
+              >
+                <span className="font-medium">{notification.playerId}</span> spilte kortet{' '}
+                <span className="font-medium">{notification.card.title}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <h2 className="text-xl font-bold mb-4">Hånden din ({hand.length}/{HAND_SIZE})</h2>
       {isLoading ? (
         <p>Laster...</p>
       ) : (
@@ -220,22 +343,30 @@ export default function KortTabFirebase() {
               <li key={card.id} className="p-3 bg-white rounded shadow">
                 <h3 className="font-medium">{card.title}</h3>
                 {card.text && <p className="text-sm text-gray-600 mt-1">{card.text}</p>}
-                <button 
-                  onClick={() => discardCard(card.id)}
-                  className="mt-2 px-3 py-1 text-sm bg-red-100 text-red-600 rounded hover:bg-red-200"
-                >
-                  Kast
-                </button>
+                <div className="mt-2 flex gap-2">
+                  <button 
+                    onClick={() => playCard(card.id)}
+                    className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200"
+                  >
+                    Spill
+                  </button>
+                  <button 
+                    onClick={() => discardCard(card.id)}
+                    className="px-3 py-1 text-sm bg-red-100 text-red-600 rounded hover:bg-red-200"
+                  >
+                    Kast
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
           <div className="space-y-2">
             <button 
-              onClick={drawCard}
-              disabled={isLoading}
+              onClick={fillHand}
+              disabled={isLoading || hand.length >= HAND_SIZE}
               className="w-full py-2 bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50"
             >
-              {isLoading ? 'Trekker kort...' : 'Trekk kort'}
+              {isLoading ? 'Trekker kort...' : hand.length >= HAND_SIZE ? 'Hånden er full' : 'Fyll hånden'}
             </button>
             
             <button 
