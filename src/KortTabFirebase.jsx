@@ -189,7 +189,15 @@ export default function KortTabFirebase() {
         return game;
       });
       
-      await loadHand();
+      // After filling hand, load it
+      const snapshot = await get(ref(db, `games/${gameId}/hands/${playerName}`));
+      const newHand = snapshot.val() || [];
+      if (!Array.isArray(newHand) || newHand.length < HAND_SIZE) {
+        console.warn('⚠️ Hand still not full after filling:', newHand.length);
+        // You might want to retry or show an error here
+      } else {
+        setHand(newHand);
+      }
     } catch (err) {
       console.error('Failed to fill hand:', err);
       setError('Kunne ikke fylle hånden. Prøv igjen.');
@@ -336,11 +344,17 @@ export default function KortTabFirebase() {
   const loadHand = async () => {
     try {
       const snap = await get(ref(db, `games/${gameId}/hands/${playerName}`));
-      // Ensure we always have an array, even if Firebase returns an object or null
       const val = snap.val();
-      const handArray = Array.isArray(val) ? val : (val ? Object.values(val) : []);
+      const handArray = Array.isArray(val) ? val : [];
       console.log('✍️ Henter starthånd:', handArray);
-      setHand(handArray);
+      
+      // If hand is empty or incomplete, try to fill it
+      if (handArray.length < HAND_SIZE) {
+        console.log('🎲 Hand is incomplete after loading, filling...');
+        await fillHand();
+      } else {
+        setHand(handArray);
+      }
       setError(null);
     } catch (err) {
       console.error('Failed to load hand:', err);
@@ -410,12 +424,15 @@ export default function KortTabFirebase() {
       setIsLoading(true);
       try {
         await initializeGameIfNeeded();
-        await loadHand();
-        // If hand is empty after loading, fill it
         const snapshot = await get(ref(db, `games/${gameId}/hands/${playerName}`));
         const currentHand = snapshot.val() || [];
-        if (Array.isArray(currentHand) && currentHand.length === 0) {
+        
+        // Always ensure we have a full hand
+        if (!Array.isArray(currentHand) || currentHand.length < HAND_SIZE) {
+          console.log('🎲 Hand needs filling:', Array.isArray(currentHand) ? currentHand.length : 0, 'of', HAND_SIZE);
           await fillHand();
+        } else {
+          setHand(currentHand);
         }
       } catch (err) {
         console.error('Setup failed:', err);
