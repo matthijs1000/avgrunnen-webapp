@@ -7,6 +7,7 @@ import KortTabFirebase from "./KortTabFirebase";
 import RulesTab from "./RulesTab";
 import RegissorTab from "./RegissorTab";
 import ScenekortTab from "./ScenekortTab";
+import RollerTab from "./RollerTab";
 import { db } from './firebaseConfig';
 import { ref, get, set, onValue, runTransaction } from 'firebase/database';
 import { fetchSceneCards, fetchDramaCards, testSheetAccess } from './utils/sheetsConfig';
@@ -319,11 +320,14 @@ export default function AvgrunnenApp() {
           </TabsContent>
 
           <TabsContent value="roller" className="mt-4">
-            <div className="text-center">
-              <p className="mb-2">Roller (eksempel):</p>
-              <Card className="mb-2"><CardContent className="p-4">Rolle 1: Maria, kultist</CardContent></Card>
-              <Card className="mb-2"><CardContent className="p-4">Rolle 2: Johan, etterforsker</CardContent></Card>
-            </div>
+            {isPlayerRegistered ? (
+              <RollerTab gameState={gameState} />
+            ) : (
+              <div className="text-center p-4">
+                <p>Venter på spillerregistrering...</p>
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto mt-2"></div>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="regissor" className="mt-4">
