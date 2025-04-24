@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import NameAndGame from "./NameAndGame";
 import KortTabFirebase from "./KortTabFirebase";
+import RulesTab from "./RulesTab";
 
 export default function AvgrunnenApp() {
   const [ready, setReady] = useState(false);
@@ -44,11 +45,7 @@ export default function AvgrunnenApp() {
           </TabsContent>
 
           <TabsContent value="regler" className="mt-4">
-            <iframe
-              src="https://docs.google.com/document/d/1DzGr01yskVG8kfF8ubtbCikPLGAiUiXLyd2faI6u6gY/edit"
-              className="w-full h-[500px] border"
-              title="Regler"
-            ></iframe>
+            <RulesTab />
           </TabsContent>
 
           <TabsContent value="roller" className="mt-4">
