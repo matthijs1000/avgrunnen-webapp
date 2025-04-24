@@ -326,6 +326,12 @@ export default function KortTabFirebase() {
       try {
         await initializeGameIfNeeded();
         await loadHand();
+        // If hand is empty after loading, fill it
+        const snapshot = await get(ref(db, `games/${gameId}/hands/${playerName}`));
+        const currentHand = snapshot.val() || [];
+        if (Array.isArray(currentHand) && currentHand.length === 0) {
+          await fillHand();
+        }
       } catch (err) {
         console.error('Setup failed:', err);
         setError('Noe gikk galt under oppstart. Prøv å laste siden på nytt.');
