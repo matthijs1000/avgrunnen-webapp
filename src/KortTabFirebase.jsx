@@ -421,28 +421,32 @@ export default function KortTabFirebase() {
 
   useEffect(() => {
     const setup = async () => {
-      setIsLoading(true);
       try {
         await initializeGameIfNeeded();
-        const snapshot = await get(ref(db, `games/${gameId}/hands/${playerName}`));
-        const currentHand = snapshot.val() || [];
+        await loadHand();
         
-        // Always ensure we have a full hand
+        // Check if hand needs filling
+        const handRef = ref(db, `games/${gameId}/hands/${playerName}`);
+        const handSnap = await get(handRef);
+        const currentHand = handSnap.val() || [];
+        
         if (!Array.isArray(currentHand) || currentHand.length < HAND_SIZE) {
-          console.log('🎲 Hand needs filling:', Array.isArray(currentHand) ? currentHand.length : 0, 'of', HAND_SIZE);
+          console.log('🎴 Fyller hånd automatisk ved oppstart');
           await fillHand();
-        } else {
-          setHand(currentHand);
         }
+        
+        setIsLoading(false);
       } catch (err) {
         console.error('Setup failed:', err);
-        setError('Noe gikk galt under oppstart. Prøv å laste siden på nytt.');
-      } finally {
+        setError(err.message);
         setIsLoading(false);
       }
     };
-    setup();
-  }, []);
+
+    if (playerName && gameId) {
+      setup();
+    }
+  }, [playerName, gameId]);
 
   if (error) {
     return (
@@ -459,151 +463,111 @@ export default function KortTabFirebase() {
   }
 
   return (
-    <div 
-      className="p-4"
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-bold">
-          {currentView === 'hand' ? `Hånden din (${hand.length}/${HAND_SIZE})` : 'Siste hendelser'}
-        </h2>
-        <button
-          onClick={() => setCurrentView(currentView === 'hand' ? 'notifications' : 'hand')}
-          className="text-sm text-gray-600 hover:text-gray-900"
-        >
-          {currentView === 'hand' ? 'Vis hendelser →' : '← Tilbake til hånd'}
-        </button>
-      </div>
-
-      <div className="relative overflow-hidden">
-        <div 
-          className="flex transition-transform duration-300 ease-in-out" 
-          style={{ 
-            transform: `translateX(${currentView === 'hand' ? '0%' : '-100%'})`,
-            width: '200%'
-          }}
-        >
-          <div className="w-full flex-shrink-0">
-            {/* Hand View */}
-            <div className="mb-4 text-sm text-gray-600">
-              <p>Kort i bunken: {deckStatus.available}</p>
-              <p>Kastede kort: {deckStatus.discarded}</p>
-              {deckStatus.available === 0 && deckStatus.discarded === 0 && (
-                <div className="mt-2 p-2 bg-yellow-50 text-yellow-800 rounded">
-                  <p className="font-medium">Bunken er tom!</p>
-                  <button 
-                    onClick={() => setShowResetConfirm(true)}
-                    className="mt-2 text-sm text-yellow-800 underline hover:text-yellow-900"
-                  >
-                    Tilbakestill spillet
-                  </button>
-                </div>
-              )}
+    <div className="p-4">
+      <div className="mb-4">
+        <h2 className="text-xl font-bold mb-2">Hånden din ({hand.length}/{HAND_SIZE})</h2>
+        <div className="text-sm text-gray-600">
+          <p>Kort i bunken: {deckStatus.available}</p>
+          <p>Kastede kort: {deckStatus.discarded}</p>
+          {deckStatus.available === 0 && deckStatus.discarded === 0 && (
+            <div className="mt-2 p-2 bg-yellow-50 text-yellow-800 rounded">
+              <p className="font-medium">Bunken er tom!</p>
+              <button 
+                onClick={() => setShowResetConfirm(true)}
+                className="mt-2 text-sm text-yellow-800 underline hover:text-yellow-900"
+              >
+                Tilbakestill spillet
+              </button>
             </div>
-            <ul className="space-y-4">
-              {hand.map((card) => (
-                <li 
-                  key={card.id} 
-                  className={`p-4 bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-200 border border-gray-100 ${
-                    actioningCards.has(card.id) ? 'opacity-50 pointer-events-none' : ''
-                  }`}
-                >
-                  <h3 className="text-lg font-bold mb-2 text-gray-800">{card.title}</h3>
-                  {card.text && (
-                    <p className="text-sm text-gray-600 mb-3 leading-relaxed">
-                      {card.text}
-                    </p>
-                  )}
-                  {card.image && (
-                    <div className="mb-4 rounded-md overflow-hidden shadow-sm">
-                      <img 
-                        src={card.image.startsWith('http') ? card.image : card.image}
-                        alt={card.title}
-                        className="w-full h-48 object-cover hover:scale-105 transition-transform duration-200"
-                        onError={(e) => {
-                          console.log('Failed to load image:', card.image);
-                          e.target.style.display = 'none';
-                        }}
-                      />
-                    </div>
-                  )}
-                  <div className="flex gap-3 mt-auto">
-                    <button 
-                      onClick={() => playCard(card.id)}
-                      disabled={actioningCards.has(card.id)}
-                      className={`
-                        flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors duration-200
-                        ${actioningCards.has(card.id)
-                          ? 'bg-gray-100 text-gray-400'
-                          : 'bg-green-100 text-green-700 hover:bg-green-200'
-                        }
-                      `}
-                    >
-                      {actioningCards.has(card.id) ? 'Spiller...' : 'Spill'}
-                    </button>
-                    <button 
-                      onClick={() => discardCard(card.id)}
-                      disabled={actioningCards.has(card.id)}
-                      className={`
-                        flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors duration-200
-                        ${actioningCards.has(card.id)
-                          ? 'bg-gray-100 text-gray-400'
-                          : 'bg-red-100 text-red-600 hover:bg-red-200'
-                        }
-                      `}
-                    >
-                      {actioningCards.has(card.id) ? 'Kaster...' : 'Kast'}
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="w-full flex-shrink-0">
-            {/* Notifications View */}
-            <ul className="space-y-3">
-              {notifications.map((notification) => {
-                const timeAgo = new Date(notification.timestamp).toLocaleTimeString('no-NO', {
-                  hour: '2-digit',
-                  minute: '2-digit'
-                });
-                
-                const isNew = newNotificationIds.has(notification.timestamp);
-                
-                return (
-                  <li 
-                    key={notification.timestamp} 
-                    className={`bg-white p-3 rounded-md shadow-sm border border-gray-100 transition-all duration-300 ${
-                      isNew ? 'animate-slide-in border-green-500' : ''
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <span className="font-medium text-gray-900">{notification.playerId}</span>
-                        <span className="text-gray-600"> spilte </span>
-                        <span className="font-medium text-gray-900">{notification.card.title}</span>
-                      </div>
-                      <span className="text-sm text-gray-500 whitespace-nowrap">
-                        {timeAgo}
-                      </span>
-                    </div>
-                    {notification.card.text && (
-                      <p className="mt-1 text-sm text-gray-600 italic">
-                        "{notification.card.text}"
-                      </p>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
+          )}
         </div>
       </div>
 
-      <div className="space-y-2">
+      <ul className="space-y-4 mb-8">
+        {hand.map((card) => (
+          <li 
+            key={card.id} 
+            className="p-4 bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-200 border border-gray-100"
+          >
+            <h3 className="text-lg font-bold text-gray-800 mb-2">{card.title}</h3>
+            {card.text && (
+              <p className="text-sm text-gray-600 leading-relaxed mb-3">
+                {card.text}
+              </p>
+            )}
+            {card.image && (
+              <div className="mb-3 rounded-md overflow-hidden shadow-sm">
+                <img 
+                  src={card.image.startsWith('http') ? card.image : card.image}
+                  alt={card.title}
+                  className="w-full h-48 object-cover hover:scale-105 transition-transform duration-200"
+                  onError={(e) => {
+                    console.log('Failed to load image:', card.image);
+                    e.target.style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              <button 
+                onClick={() => playCard(card.id)}
+                disabled={actioningCards.has(card.id)}
+                className="p-2 text-sm font-medium rounded-md bg-green-100 text-green-700 hover:bg-green-200 disabled:bg-gray-100 disabled:text-gray-400"
+              >
+                {actioningCards.has(card.id) ? 'Spiller...' : 'Spill'}
+              </button>
+              <button 
+                onClick={() => discardCard(card.id)}
+                disabled={actioningCards.has(card.id)}
+                className="p-2 text-sm font-medium rounded-md bg-red-100 text-red-600 hover:bg-red-200 disabled:bg-gray-100 disabled:text-gray-400"
+              >
+                {actioningCards.has(card.id) ? 'Kaster...' : 'Kast'}
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-8">
+        <h2 className="text-xl font-bold mb-4">Siste hendelser</h2>
+        <ul className="space-y-3">
+          {notifications.map((notification) => {
+            const timeAgo = new Date(notification.timestamp).toLocaleTimeString('no-NO', {
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+            
+            const isNew = newNotificationIds.has(notification.timestamp);
+            
+            return (
+              <li 
+                key={notification.timestamp} 
+                className={`bg-white p-3 rounded-md shadow-sm border border-gray-100 transition-all duration-300 ${
+                  isNew ? 'animate-slide-in border-green-500' : ''
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="font-medium text-gray-900">{notification.playerId}</span>
+                    <span className="text-gray-600"> spilte </span>
+                    <span className="font-medium text-gray-900">{notification.card.title}</span>
+                  </div>
+                  <span className="text-sm text-gray-500 whitespace-nowrap">
+                    {timeAgo}
+                  </span>
+                </div>
+                {notification.card.text && (
+                  <p className="mt-1 text-sm text-gray-600 italic">
+                    "{notification.card.text}"
+                  </p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <div className="mt-8">
         <button 
           onClick={() => setShowResetConfirm(true)}
           className="w-full py-2 bg-red-600 text-white rounded hover:bg-red-700"
