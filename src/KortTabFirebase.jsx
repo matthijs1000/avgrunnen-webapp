@@ -281,6 +281,8 @@ export default function KortTabFirebase() {
       });
       console.log('🔄 Reset game with fresh cards from sheet');
       await loadHand();
+      // Fill hand with new cards after reset
+      await fillHand();
       setShowResetConfirm(false);
     } catch (err) {
       console.error('Failed to reset game:', err);
