@@ -28,12 +28,40 @@ export default function KortTabFirebase() {
   const [currentView, setCurrentView] = useState('hand'); // 'hand' or 'notifications'
   const [touchStart, setTouchStart] = useState(null);
   const [newNotificationIds, setNewNotificationIds] = useState(new Set());
+  const [isRegistered, setIsRegistered] = useState(false);
 
   const playerName = localStorage.getItem('name');
   const gameId = localStorage.getItem('gameId');
+  const character = localStorage.getItem('character');
 
   console.log('🧠 Spiller:', playerName);
   console.log('🧠 Aktiv gameId:', gameId);
+
+  // Add player registration check
+  useEffect(() => {
+    if (!playerName || !gameId) return;
+
+    const checkRegistration = async () => {
+      try {
+        const playerRef = ref(db, `games/${gameId}/players/${playerName}`);
+        const snapshot = await get(playerRef);
+        
+        if (!snapshot.exists()) {
+          // Player not registered, register them
+          await set(playerRef, {
+            character: character || playerName // Fallback to playerName if no character
+          });
+          console.log('🎭 Registered player:', playerName);
+        }
+        setIsRegistered(true);
+      } catch (err) {
+        console.error('Failed to check/create player registration:', err);
+        setError('Kunne ikke registrere spilleren. Prøv å laste siden på nytt.');
+      }
+    };
+
+    checkRegistration();
+  }, [playerName, gameId, character]);
 
   // Subscribe to played cards notifications
   useEffect(() => {
@@ -420,9 +448,15 @@ export default function KortTabFirebase() {
     });
   }, [gameId]);
 
+  // Modify setup effect to check registration
   useEffect(() => {
     const setup = async () => {
       try {
+        if (!isRegistered) {
+          console.log('⏳ Waiting for player registration...');
+          return;
+        }
+
         await initializeGameIfNeeded();
         await loadHand();
         
@@ -447,7 +481,47 @@ export default function KortTabFirebase() {
     if (playerName && gameId) {
       setup();
     }
-  }, [playerName, gameId]);
+  }, [playerName, gameId, isRegistered]);
+
+  // Add cleanup function for orphaned hands
+  const cleanupOrphanedHands = async () => {
+    try {
+      await runTransaction(ref(db, `games/${gameId}`), (game) => {
+        if (!game) return game;
+
+        const hands = game.hands || {};
+        const players = game.players || {};
+
+        // Find hands that don't have corresponding players
+        Object.keys(hands).forEach(handPlayer => {
+          if (!players[handPlayer]) {
+            console.log('🧹 Removing orphaned hand for:', handPlayer);
+            delete hands[handPlayer];
+          }
+        });
+
+        game.hands = hands;
+        return game;
+      });
+    } catch (err) {
+      console.error('Failed to cleanup orphaned hands:', err);
+    }
+  };
+
+  // Add cleanup effect
+  useEffect(() => {
+    if (isRegistered) {
+      cleanupOrphanedHands();
+    }
+  }, [isRegistered]);
+
+  if (!isRegistered) {
+    return (
+      <div className="p-4">
+        <p className="text-gray-600">Validerer spiller...</p>
+      </div>
+    );
+  }
 
   if (error) {
     return (
