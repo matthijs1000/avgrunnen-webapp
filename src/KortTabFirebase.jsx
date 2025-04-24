@@ -115,6 +115,7 @@ export default function KortTabFirebase() {
   const [error, setError] = useState(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [deckStatus, setDeckStatus] = useState({ total: 0, available: 0, discarded: 0 });
 
   const playerName = localStorage.getItem('name');
   const gameId = localStorage.getItem('gameId');
@@ -309,7 +310,10 @@ export default function KortTabFirebase() {
         // Update the hand
         game.hands[playerName] = updatedHand;
 
-        // Add to played cards with timestamp
+        // Add to discard pile
+        game.discard = [...(game.discard || []), playedCard];
+
+        // Add to played cards with timestamp for history
         game.played = game.played || {};
         const newPlayedRef = push(ref(db, `games/${gameId}/played`));
         game.played[newPlayedRef.key] = {
@@ -366,6 +370,36 @@ export default function KortTabFirebase() {
     }
   };
 
+  const updateDeckStatus = (game) => {
+    const allCards = game.cards || [];
+    const discard = game.discard || [];
+    const allHands = game.hands || {};
+    
+    const playedOrHeldIds = new Set([
+      ...Object.values(allHands).flat().map(card => card.id),
+      ...discard.map(card => card.id)
+    ]);
+    
+    const availableCards = allCards.filter(card => !playedOrHeldIds.has(card.id));
+    
+    setDeckStatus({
+      total: allCards.length,
+      available: availableCards.length,
+      discarded: discard.length
+    });
+  };
+
+  // Add this useEffect to update deck status
+  useEffect(() => {
+    const gameRef = ref(db, `games/${gameId}`);
+    onValue(gameRef, (snapshot) => {
+      const game = snapshot.val();
+      if (game) {
+        updateDeckStatus(game);
+      }
+    });
+  }, [gameId]);
+
   useEffect(() => {
     const setup = async () => {
       setIsLoading(true);
@@ -398,30 +432,26 @@ export default function KortTabFirebase() {
 
   return (
     <div className="p-4">
-      <div className="mb-6 bg-black/5 rounded-lg p-4">
-        <h3 className="text-lg font-semibold mb-2">Siste hendelser</h3>
-        {notifications.length === 0 ? (
-          <p className="text-gray-500 italic">Ingen kort er spilt ennå</p>
-        ) : (
-          <ul className="space-y-2">
-            {notifications.map((notification) => (
-              <li 
-                key={notification.timestamp} 
-                className="text-sm bg-white p-2 rounded shadow-sm"
-              >
-                <span className="font-medium">{notification.playerId}</span> spilte kortet{' '}
-                <span className="font-medium">{notification.card.title}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
       <h2 className="text-xl font-bold mb-4">Hånden din ({hand.length}/{HAND_SIZE})</h2>
       {isLoading ? (
         <p>Laster...</p>
       ) : (
         <>
+          <div className="mb-4 text-sm text-gray-600">
+            <p>Kort i bunken: {deckStatus.available}</p>
+            <p>Kastede kort: {deckStatus.discarded}</p>
+            {deckStatus.available === 0 && deckStatus.discarded === 0 && (
+              <div className="mt-2 p-2 bg-yellow-50 text-yellow-800 rounded">
+                <p className="font-medium">Bunken er tom!</p>
+                <button 
+                  onClick={() => setShowResetConfirm(true)}
+                  className="mt-2 text-sm text-yellow-800 underline hover:text-yellow-900"
+                >
+                  Tilbakestill spillet
+                </button>
+              </div>
+            )}
+          </div>
           <ul className="space-y-2 mb-4">
             {hand.map((card) => (
               <li key={card.id} className="p-3 bg-white rounded shadow">
@@ -456,48 +486,68 @@ export default function KortTabFirebase() {
               </li>
             ))}
           </ul>
-          <div className="space-y-2">
-            <button 
-              onClick={fillHand}
-              disabled={isLoading || hand.length >= HAND_SIZE}
-              className="w-full py-2 bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50"
-            >
-              {isLoading ? 'Trekker kort...' : hand.length >= HAND_SIZE ? 'Hånden er full' : 'Fyll hånden'}
-            </button>
-            
-            <button 
-              onClick={() => setShowResetConfirm(true)}
-              className="w-full py-2 mt-4 bg-red-600 text-white rounded hover:bg-red-700"
-            >
-              Tilbakestill spill
-            </button>
-          </div>
-
-          {showResetConfirm && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-              <div className="bg-white rounded-lg p-6 max-w-sm w-full">
-                <h3 className="text-lg font-bold mb-4">Bekreft tilbakestilling</h3>
-                <p className="mb-6 text-gray-600">
-                  Er du sikker på at du vil tilbakestille spillet? Dette vil fjerne alle kort fra alle spilleres hender og stokke kortstokken på nytt.
-                </p>
-                <div className="flex justify-end space-x-3">
-                  <button
-                    onClick={() => setShowResetConfirm(false)}
-                    className="px-4 py-2 text-gray-600 hover:text-gray-800"
-                  >
-                    Avbryt
-                  </button>
-                  <button
-                    onClick={resetGame}
-                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                  >
-                    Tilbakestill
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </>
+      )}
+
+      <div className="mt-6 bg-black/5 rounded-lg p-4">
+        <h3 className="text-lg font-semibold mb-2">Siste hendelser</h3>
+        {notifications.length === 0 ? (
+          <p className="text-gray-500 italic">Ingen kort er spilt ennå</p>
+        ) : (
+          <ul className="space-y-2">
+            {notifications.map((notification) => (
+              <li 
+                key={notification.timestamp} 
+                className="text-sm bg-white p-2 rounded shadow-sm"
+              >
+                <span className="font-medium">{notification.playerId}</span> spilte kortet{' '}
+                <span className="font-medium">{notification.card.title}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <button 
+          onClick={fillHand}
+          disabled={isLoading || hand.length >= HAND_SIZE}
+          className="w-full py-2 bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50"
+        >
+          {isLoading ? 'Trekker kort...' : hand.length >= HAND_SIZE ? 'Hånden er full' : 'Fyll hånden'}
+        </button>
+        
+        <button 
+          onClick={() => setShowResetConfirm(true)}
+          className="w-full py-2 mt-4 bg-red-600 text-white rounded hover:bg-red-700"
+        >
+          Tilbakestill spill
+        </button>
+      </div>
+
+      {showResetConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full">
+            <h3 className="text-lg font-bold mb-4">Bekreft tilbakestilling</h3>
+            <p className="mb-6 text-gray-600">
+              Er du sikker på at du vil tilbakestille spillet? Dette vil fjerne alle kort fra alle spilleres hender og stokke kortstokken på nytt.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Avbryt
+              </button>
+              <button
+                onClick={resetGame}
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                Tilbakestill
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
