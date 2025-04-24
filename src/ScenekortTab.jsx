@@ -234,6 +234,7 @@ export default function ScenekortTab() {
   // Load scene cards and hand
   const loadSceneCards = async () => {
     try {
+      console.log('🎲 Loading scene cards...');
       const [cardsSnap, handSnap] = await Promise.all([
         get(ref(db, `games/${gameId}/sceneCards/cards`)),
         get(ref(db, `games/${gameId}/sceneCards/hands/${playerName}`))
@@ -242,16 +243,22 @@ export default function ScenekortTab() {
       const cards = cardsSnap.val() || [];
       const playerHand = handSnap.val() || [];
       
+      console.log('📥 Current cards:', cards.length);
+      console.log('✋ Current hand:', playerHand.length);
+      
       setSceneCards(cards);
       setHand(playerHand);
 
       // Only draw cards if we don't have enough and we're not already loading
       if (playerHand.length < SCENE_HAND_SIZE && !isLoading) {
+        console.log(`🎴 Need to draw ${SCENE_HAND_SIZE - playerHand.length} cards`);
         setIsLoading(true);
         try {
           // Draw cards one at a time to prevent race conditions
           for (let i = playerHand.length; i < SCENE_HAND_SIZE; i++) {
-            console.log(`🎴 Drawing card ${i + 1} of ${SCENE_HAND_SIZE}...`);
+            console.log(`🎲 Drawing card ${i + 1} of ${SCENE_HAND_SIZE}...`);
+            let drawn = false;
+            
             await runTransaction(ref(db, `games/${gameId}/sceneCards`), (data) => {
               if (!data) return data;
 
@@ -262,13 +269,16 @@ export default function ScenekortTab() {
                 return notInHand && isAvailable;
               });
 
+              console.log(`📊 Available cards: ${availableCards.length}`);
+
               if (availableCards.length === 0) {
-                console.log('No more cards available to draw');
+                console.log('❌ No more cards available to draw');
                 return data;
               }
 
               // Draw a random available card
               const newCard = availableCards[Math.floor(Math.random() * availableCards.length)];
+              console.log('🎴 Drew card:', newCard.title);
               
               // Update the player's hand
               data.hands = data.hands || {};
@@ -280,12 +290,19 @@ export default function ScenekortTab() {
                 card.id === newCard.id ? { ...card, playerId: normalizedPlayerId } : card
               );
 
+              drawn = true;
               return data;
             });
+
+            if (!drawn) {
+              console.log('⚠️ Failed to draw card, breaking loop');
+              break;
+            }
 
             // Refresh hand after each draw
             const newHandSnap = await get(ref(db, `games/${gameId}/sceneCards/hands/${playerName}`));
             const newHand = newHandSnap.val() || [];
+            console.log('✨ Updated hand size:', newHand.length);
             setHand(newHand);
           }
         } finally {
