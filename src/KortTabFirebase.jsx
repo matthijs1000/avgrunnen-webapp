@@ -15,22 +15,95 @@ import {
 
 // Initial cards deck
 const initialCards = [
-  { id: '1', title: 'Mørket kommer', text: 'Alt lys slukner. En rå frykt brer seg.' },
-  { id: '2', title: 'Et tap', text: 'Du mister noe dyrebart – eller noen.' },
-  { id: '3', title: 'Fristelse', text: 'Noe du ønsker ligger foran deg. Men hva koster det?' },
-  { id: '4', title: 'Skjult viten', text: 'Du får innblikk i noe som ikke var ment for deg.' },
-  { id: '5', title: 'Den sanne fienden', text: 'En venn viser seg å være noe helt annet.' },
-  { id: '6', title: 'Et nytt valg', text: 'Du står ved en korsvei. Du må velge – og velger feil.' },
-  { id: '7', title: 'En uventet alliert', text: 'Noen du ikke stolte på viser seg å være din største støtte.' },
-  { id: '8', title: 'Tapte minner', text: 'Et øyeblikk av klarhet i en tåket tilstand.' },
-  { id: '9', title: 'Skjebnens ironi', text: 'Det du fryktet mest blir din redning.' },
-  { id: '10', title: 'En løgn avsløres', text: 'Sannheten kommer frem, men er det for sent?' },
-  { id: '11', title: 'Et gammelt sår', text: 'Noe fra fortiden dukker opp og må håndteres.' },
-  { id: '12', title: 'En ny begynnelse', text: 'Alt du trodde du visste, viser seg å være feil.' },
-  { id: '13', title: 'Skjult fare', text: 'Det som ser trygt ut, er faktisk farlig.' },
-  { id: '14', title: 'Uventet gave', text: 'Noen gir deg noe du ikke visste du trengte.' },
-  { id: '15', title: 'Tapte muligheter', text: 'En sjanse du ikke tok, kommer tilbake.' },
-  { id: '16', title: 'En vanskelig sannhet', text: 'Du må velge mellom å vite sannheten eller leve i uvitenhet.' }
+  { 
+    id: '1', 
+    title: 'Mørket kommer', 
+    text: 'Alt lys slukner. En rå frykt brer seg.',
+    image: '/images/cards/darkness.jpg'
+  },
+  { 
+    id: '2', 
+    title: 'Et tap', 
+    text: 'Du mister noe dyrebart – eller noen.',
+    image: '/images/cards/loss.jpg'
+  },
+  { 
+    id: '3', 
+    title: 'Fristelse', 
+    text: 'Noe du ønsker ligger foran deg. Men hva koster det?',
+    image: '/images/cards/temptation.jpg'
+  },
+  { 
+    id: '4', 
+    title: 'Skjult viten', 
+    text: 'Du får innblikk i noe som ikke var ment for deg.' 
+  },
+  { 
+    id: '5', 
+    title: 'Den sanne fienden', 
+    text: 'En venn viser seg å være noe helt annet.',
+    image: '/images/cards/enemy.jpg'
+  },
+  { 
+    id: '6', 
+    title: 'Et nytt valg', 
+    text: 'Du står ved en korsvei. Du må velge – og velger feil.' 
+  },
+  { 
+    id: '7', 
+    title: 'En uventet alliert', 
+    text: 'Noen du ikke stolte på viser seg å være din største støtte.',
+    image: '/images/cards/ally.jpg'
+  },
+  { 
+    id: '8', 
+    title: 'Tapte minner', 
+    text: 'Et øyeblikk av klarhet i en tåket tilstand.' 
+  },
+  { 
+    id: '9', 
+    title: 'Skjebnens ironi', 
+    text: 'Det du fryktet mest blir din redning.',
+    image: '/images/cards/irony.jpg'
+  },
+  { 
+    id: '10', 
+    title: 'En løgn avsløres', 
+    text: 'Sannheten kommer frem, men er det for sent?' 
+  },
+  { 
+    id: '11', 
+    title: 'Et gammelt sår', 
+    text: 'Noe fra fortiden dukker opp og må håndteres.',
+    image: '/images/cards/wound.jpg'
+  },
+  { 
+    id: '12', 
+    title: 'En ny begynnelse', 
+    text: 'Alt du trodde du visste, viser seg å være feil.' 
+  },
+  { 
+    id: '13', 
+    title: 'Skjult fare', 
+    text: 'Det som ser trygt ut, er faktisk farlig.',
+    image: '/images/cards/danger.jpg'
+  },
+  { 
+    id: '14', 
+    title: 'Uventet gave', 
+    text: 'Noen gir deg noe du ikke visste du trengte.' 
+  },
+  { 
+    id: '15', 
+    title: 'Tapte muligheter', 
+    text: 'En sjanse du ikke tok, kommer tilbake.',
+    image: '/images/cards/opportunity.jpg'
+  },
+  { 
+    id: '16', 
+    title: 'En vanskelig sannhet', 
+    text: 'Du må velge mellom å vite sannheten eller leve i uvitenhet.' 
+  }
 ];
 
 const HAND_SIZE = 5;
@@ -354,6 +427,18 @@ export default function KortTabFirebase() {
               <li key={card.id} className="p-3 bg-white rounded shadow">
                 <h3 className="font-medium">{card.title}</h3>
                 {card.text && <p className="text-sm text-gray-600 mt-1">{card.text}</p>}
+                {card.image && (
+                  <div className="my-2">
+                    <img 
+                      src={card.image} 
+                      alt={card.title}
+                      className="w-full h-48 object-cover rounded"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
                 <div className="mt-2 flex gap-2">
                   <button 
                     onClick={() => playCard(card.id)}
