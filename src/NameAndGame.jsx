@@ -4,9 +4,9 @@ import { ref, set } from 'firebase/database';
 import { cleanupGame } from './utils/cleanup';
 
 export default function NameAndGame({ onSubmit }) {
-  const [name, setName] = useState("")
-  const [gameId, setGameId] = useState("")
-  const [character, setCharacter] = useState("")
+  const [name, setName] = useState("Matthijs")
+  const [gameId, setGameId] = useState("gruppe-a")
+  const [character, setCharacter] = useState("Test-orc")
   const [isLoading, setIsLoading] = useState(false)
 
   const handleSubmit = async (e) => {

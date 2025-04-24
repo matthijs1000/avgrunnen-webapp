@@ -9,7 +9,7 @@ import {
 } from 'firebase/database';
 import { fetchSceneCards } from './utils/sheetsConfig';
 
-const SCENE_HAND_SIZE = 3;
+const HAND_SIZE = 3;
 
 // Helper function to check if a card belongs to a player (case-insensitive)
 const isCardOwnedByPlayer = (card, playerName) => {
@@ -102,7 +102,7 @@ const TypeIcon = ({ type }) => {
   }
 };
 
-export default function ScenekortTab() {
+export default function ScenekortTab({ gameState }) {
   const [sceneCards, setSceneCards] = useState([]);
   const [hand, setHand] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -111,6 +111,7 @@ export default function ScenekortTab() {
   const [deckStatus, setDeckStatus] = useState({ total: 0, available: 0 });
   const [playerCount, setPlayerCount] = useState(0);
   const [playerCharacters, setPlayerCharacters] = useState({});
+  const [actioningCards, setActioningCards] = useState(new Set());
 
   const playerName = localStorage.getItem('name');
   const gameId = localStorage.getItem('gameId');
@@ -250,13 +251,13 @@ export default function ScenekortTab() {
       setHand(playerHand);
 
       // Only draw cards if we don't have enough and we're not already loading
-      if (playerHand.length < SCENE_HAND_SIZE && !isLoading) {
-        console.log(`🎴 Need to draw ${SCENE_HAND_SIZE - playerHand.length} cards`);
+      if (playerHand.length < HAND_SIZE && !isLoading) {
+        console.log(`🎴 Need to draw ${HAND_SIZE - playerHand.length} cards`);
         setIsLoading(true);
         try {
           // Draw cards one at a time to prevent race conditions
-          for (let i = playerHand.length; i < SCENE_HAND_SIZE; i++) {
-            console.log(`🎲 Drawing card ${i + 1} of ${SCENE_HAND_SIZE}...`);
+          for (let i = playerHand.length; i < HAND_SIZE; i++) {
+            console.log(`🎲 Drawing card ${i + 1} of ${HAND_SIZE}...`);
             let drawn = false;
             
             await runTransaction(ref(db, `games/${gameId}/sceneCards`), (data) => {
@@ -318,32 +319,116 @@ export default function ScenekortTab() {
     }
   };
 
-  // Play a scene card
-  const playSceneCard = async (cardId) => {
-    setIsLoading(true);
+  // Update hand when gameState changes
+  useEffect(() => {
+    if (!gameState || !playerName) return;
+
+    const playerHand = gameState.sceneCards?.hands?.[playerName] || [];
+    console.log('📥 Current scene cards hand:', playerHand.length);
+    setHand(playerHand);
+
+    // Auto-fill hand if needed
+    if (playerHand.length < HAND_SIZE) {
+      console.log('🎴 Hand needs', HAND_SIZE - playerHand.length, 'more cards, filling...');
+      fillHand();
+    }
+  }, [gameState, playerName]);
+
+  const fillHand = async () => {
     try {
-      await runTransaction(ref(db, `games/${gameId}/sceneCards`), (data) => {
-        if (!data) return data;
+      await runTransaction(ref(db, `games/${gameId}`), (game) => {
+        if (!game || !game.sceneCards) return game;
 
-        // Remove card from hand
-        data.hands = data.hands || {};
-        data.hands[playerName] = (data.hands[playerName] || []).filter(c => c.id !== cardId);
+        // Initialize hands if it doesn't exist
+        if (!game.sceneCards.hands) {
+          game.sceneCards.hands = {};
+        }
 
-        // Remove player ownership from the card
-        data.cards = data.cards.map(card => 
-          card.id === cardId ? { ...card, playerId: '' } : card
+        // Initialize player's hand if it doesn't exist
+        if (!game.sceneCards.hands[playerName]) {
+          game.sceneCards.hands[playerName] = [];
+        }
+
+        const allCards = game.sceneCards.cards || [];
+        const currentHand = game.sceneCards.hands[playerName];
+        const cardsNeeded = HAND_SIZE - currentHand.length;
+
+        if (cardsNeeded <= 0) {
+          console.log('✋ Hand is already full');
+          return game;
+        }
+
+        // Get all cards that are currently in hands
+        const playedCards = new Set(
+          Object.values(game.sceneCards.hands)
+            .flat()
+            .map(card => card.id)
         );
 
-        return data;
+        // Find available cards
+        const availableCards = allCards.filter(card => !playedCards.has(card.id));
+        console.log('📊 Available cards:', availableCards.length);
+
+        if (availableCards.length === 0) {
+          console.warn('🚫 No cards available');
+          return game;
+        }
+
+        // Shuffle available cards
+        for (let i = availableCards.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [availableCards[i], availableCards[j]] = [availableCards[j], availableCards[i]];
+        }
+
+        // Draw cards
+        const newCards = availableCards.slice(0, cardsNeeded);
+        console.log('🎴 Drew card:', newCards.map(c => c.title).join(', '));
+
+        // Update hand
+        game.sceneCards.hands[playerName] = [...currentHand, ...newCards];
+        return game;
       });
-      
-      // After playing a card, load cards again which will automatically draw if needed
-      await loadSceneCards();
     } catch (err) {
-      console.error('Failed to play scene card:', err);
-      setError('Kunne ikke spille scenekortet. Prøv igjen.');
+      console.error('Failed to fill hand:', err);
+      setError('Kunne ikke fylle hånden. Prøv igjen.');
+    }
+  };
+
+  const playCard = async (cardId) => {
+    setActioningCards(prev => new Set([...prev, cardId]));
+    try {
+      await runTransaction(ref(db, `games/${gameId}`), (game) => {
+        if (!game || !game.sceneCards?.hands?.[playerName]) return game;
+
+        const currentHand = game.sceneCards.hands[playerName];
+        const playedCard = currentHand.find(c => c.id === cardId);
+        
+        if (!playedCard) return game;
+
+        // Remove card from hand
+        game.sceneCards.hands[playerName] = currentHand.filter(c => c.id !== cardId);
+
+        // Add to played cards history
+        game.sceneCards.played = game.sceneCards.played || {};
+        game.sceneCards.played[Date.now()] = {
+          playerId: playerName,
+          card: playedCard
+        };
+
+        return game;
+      });
+
+      // Draw a new card
+      await fillHand();
+    } catch (err) {
+      console.error('Failed to play card:', err);
+      setError('Kunne ikke spille kortet. Prøv igjen.');
     } finally {
-      setIsLoading(false);
+      setActioningCards(prev => {
+        const next = new Set(prev);
+        next.delete(cardId);
+        return next;
+      });
     }
   };
 
@@ -439,8 +524,8 @@ export default function ScenekortTab() {
         setHand(playerHand);
         
         // If hand is not full, fill it
-        if (playerHand.length < SCENE_HAND_SIZE) {
-          console.log(`🎴 Hand needs ${SCENE_HAND_SIZE - playerHand.length} more cards, filling...`);
+        if (playerHand.length < HAND_SIZE) {
+          console.log(`🎴 Hand needs ${HAND_SIZE - playerHand.length} more cards, filling...`);
           await loadSceneCards();
         }
         
@@ -482,7 +567,7 @@ export default function ScenekortTab() {
     <div className="p-4">
       <div className="mb-4">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold">Dine Scenekort ({hand.length}/{SCENE_HAND_SIZE})</h2>
+          <h2 className="text-xl font-bold">Dine Scenekort ({hand.length}/{HAND_SIZE})</h2>
           <button
             onClick={() => {
               localStorage.clear();
@@ -550,11 +635,11 @@ export default function ScenekortTab() {
               )}
               <div className="flex justify-end">
                 <button 
-                  onClick={() => playSceneCard(card.id)}
-                  disabled={isLoading}
+                  onClick={() => playCard(card.id)}
+                  disabled={actioningCards.has(card.id)}
                   className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:bg-gray-400"
                 >
-                  {isLoading ? 'Spiller...' : 'Spill'}
+                  {actioningCards.has(card.id) ? 'Spiller...' : 'Spill'}
                 </button>
               </div>
             </div>

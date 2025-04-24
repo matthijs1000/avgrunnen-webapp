@@ -3,10 +3,11 @@ import { ref, set } from 'firebase/database';
 
 export async function cleanupGame(gameId) {
   try {
-    // Reset the entire game structure but keep the cards
+    // Reset player data and hands while keeping the cards
     await set(ref(db, `games/${gameId}/players`), null);
-    await set(ref(db, `games/${gameId}/hands`), null);
-    await set(ref(db, `games/${gameId}/played`), null);
+    await set(ref(db, `games/${gameId}/dramaCards/hands`), {});
+    await set(ref(db, `games/${gameId}/dramaCards/played`), {});
+    await set(ref(db, `games/${gameId}/sceneCards/hands`), {});
     
     console.log('🧹 Cleaned up game:', gameId);
     console.log('✨ You can now sign in with new players');
