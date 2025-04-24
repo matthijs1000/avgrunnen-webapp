@@ -17,11 +17,14 @@ const isCardOwnedByPlayer = (card, playerName) => {
 };
 
 // Helper function to check if a card is available to draw
-const isCardAvailableToDraw = (card, playerName) => {
+const isCardAvailableToDraw = (card, playerName, playedCards) => {
   // Card is available if:
   // 1. It's unowned (playerId is empty or null) OR
-  // 2. It belongs to another player (not mine)
-  return !card.playerId || !isCardOwnedByPlayer(card, playerName);
+  // 2. It belongs to the current player
+  // AND
+  // 3. It hasn't been played yet
+  return (!card.playerId || isCardOwnedByPlayer(card, playerName)) && 
+         !playedCards.has(card.id);
 };
 
 // Helper function to normalize player ID case
@@ -122,12 +125,22 @@ export default function ScenekortTab({ gameState }) {
 
     const allCards = data.cards || [];
     const allHandCards = Object.values(data.hands || {}).flat();
+    const playedCards = data.played || [];
     
-    // Count available cards (not in any hand and either unowned or owned by others)
+    console.log('🎭 Deck Status Update:');
+    console.log('📊 Total cards:', allCards.length);
+    console.log('✋ Cards in hands:', allHandCards.map(c => c.id));
+    console.log('🎭 Played cards:', playedCards.map(p => p.card.id));
+    
+    // Count available cards (not in any hand AND not played)
     const availableCards = allCards.filter(card => {
       const notInHand = !allHandCards.some(handCard => handCard.id === card.id);
-      return notInHand && isCardAvailableToDraw(card, playerName);
+      const notPlayed = !playedCards.some(p => p.card.id === card.id);
+      const isAvailable = isCardAvailableToDraw(card, playerName, new Set(playedCards.map(p => p.card.id)));
+      return notInHand && notPlayed && isAvailable;
     });
+
+    console.log('✨ Available cards:', availableCards.map(c => c.id));
 
     setDeckStatus({
       total: allCards.length,
@@ -222,7 +235,8 @@ export default function ScenekortTab({ gameState }) {
         
         await set(ref(db, `games/${gameId}/sceneCards`), {
           cards: sheetCards,
-          hands: {}
+          hands: {},
+          played: [] // Initialize as empty array
         });
         console.log('🎬 Initialized scene cards from sheet');
       }
@@ -236,16 +250,19 @@ export default function ScenekortTab({ gameState }) {
   const loadSceneCards = async () => {
     try {
       console.log('🎲 Loading scene cards...');
-      const [cardsSnap, handSnap] = await Promise.all([
+      const [cardsSnap, handSnap, playedSnap] = await Promise.all([
         get(ref(db, `games/${gameId}/sceneCards/cards`)),
-        get(ref(db, `games/${gameId}/sceneCards/hands/${playerName}`))
+        get(ref(db, `games/${gameId}/sceneCards/hands/${playerName}`)),
+        get(ref(db, `games/${gameId}/sceneCards/played`))
       ]);
       
       const cards = cardsSnap.val() || [];
       const playerHand = handSnap.val() || [];
+      const playedCards = playedSnap.val() || [];
       
       console.log('📥 Current cards:', cards.length);
-      console.log('✋ Current hand:', playerHand.length);
+      console.log('✋ Current hand:', playerHand.map(c => c.id));
+      console.log('🎭 Played cards:', playedCards.map(p => p.card.id));
       
       setSceneCards(cards);
       setHand(playerHand);
@@ -263,14 +280,32 @@ export default function ScenekortTab({ gameState }) {
             await runTransaction(ref(db, `games/${gameId}/sceneCards`), (data) => {
               if (!data) return data;
 
+              // Get all cards that are currently in hands
               const allHandCards = Object.values(data.hands || {}).flat();
+              const allHandCardIds = new Set(allHandCards.map(card => card.id));
+              
+              // Get all played cards
+              const allPlayedCards = data.played || [];
+              const allPlayedCardIds = new Set(allPlayedCards.map(p => p.card.id));
+              
+              console.log('🔍 Current state:');
+              console.log('✋ Cards in hands:', [...allHandCardIds]);
+              console.log('🎭 Played cards:', [...allPlayedCardIds]);
+              
+              // Find available cards (not in any hand AND not played)
               const availableCards = (data.cards || []).filter(card => {
-                const notInHand = !allHandCards.some(handCard => handCard.id === card.id);
-                const isAvailable = isCardAvailableToDraw(card, playerName);
-                return notInHand && isAvailable;
+                const notInHand = !allHandCardIds.has(card.id);
+                const notPlayed = !allPlayedCardIds.has(card.id);
+                const isAvailable = isCardAvailableToDraw(card, playerName, allPlayedCardIds);
+                
+                if (!notInHand) console.log(`❌ Card ${card.id} is in a hand`);
+                if (!notPlayed) console.log(`❌ Card ${card.id} has been played`);
+                if (!isAvailable) console.log(`❌ Card ${card.id} is not available to draw`);
+                
+                return notInHand && notPlayed && isAvailable;
               });
 
-              console.log(`📊 Available cards: ${availableCards.length}`);
+              console.log(`📊 Available cards (${availableCards.length}):`, availableCards.map(c => c.id));
 
               if (availableCards.length === 0) {
                 console.log('❌ No more cards available to draw');
@@ -279,17 +314,19 @@ export default function ScenekortTab({ gameState }) {
 
               // Draw a random available card
               const newCard = availableCards[Math.floor(Math.random() * availableCards.length)];
-              console.log('🎴 Drew card:', newCard.title);
+              console.log('🎴 Drew card:', newCard.id, newCard.title);
               
               // Update the player's hand
               data.hands = data.hands || {};
               data.hands[playerName] = [...(data.hands[playerName] || []), newCard];
 
-              // Mark the card as owned by this player
-              const normalizedPlayerId = normalizePlayerId(playerName);
-              data.cards = data.cards.map(card => 
-                card.id === newCard.id ? { ...card, playerId: normalizedPlayerId } : card
-              );
+              // Mark the card as owned by this player if it's not a utility card
+              if (!['Breathing', 'Development', 'Exploration', 'Plan', 'Change'].includes(newCard.type)) {
+                const normalizedPlayerId = normalizePlayerId(playerName);
+                data.cards = data.cards.map(card => 
+                  card.id === newCard.id ? { ...card, playerId: normalizedPlayerId } : card
+                );
+              }
 
               drawn = true;
               return data;
@@ -303,7 +340,7 @@ export default function ScenekortTab({ gameState }) {
             // Refresh hand after each draw
             const newHandSnap = await get(ref(db, `games/${gameId}/sceneCards/hands/${playerName}`));
             const newHand = newHandSnap.val() || [];
-            console.log('✨ Updated hand size:', newHand.length);
+            console.log('✨ Updated hand:', newHand.map(c => c.id));
             setHand(newHand);
           }
         } finally {
@@ -339,6 +376,8 @@ export default function ScenekortTab({ gameState }) {
       await runTransaction(ref(db, `games/${gameId}`), (game) => {
         if (!game || !game.sceneCards) return game;
 
+        console.log('🎴 Starting fillHand transaction');
+        
         // Initialize hands if it doesn't exist
         if (!game.sceneCards.hands) {
           game.sceneCards.hands = {};
@@ -353,21 +392,41 @@ export default function ScenekortTab({ gameState }) {
         const currentHand = game.sceneCards.hands[playerName];
         const cardsNeeded = HAND_SIZE - currentHand.length;
 
+        console.log('📊 Current state:');
+        console.log('✋ Current hand:', currentHand.map(c => c.id));
+        console.log('🎴 Cards needed:', cardsNeeded);
+
         if (cardsNeeded <= 0) {
           console.log('✋ Hand is already full');
           return game;
         }
 
         // Get all cards that are currently in hands
-        const playedCards = new Set(
-          Object.values(game.sceneCards.hands)
-            .flat()
-            .map(card => card.id)
-        );
+        const allHandCards = Object.values(game.sceneCards.hands).flat();
+        const handCardIds = new Set(allHandCards.map(card => card.id));
+        
+        // Get all played cards
+        const playedCards = game.sceneCards.played || [];
+        const playedCardIds = new Set(playedCards.map(p => p.card.id));
 
-        // Find available cards
-        const availableCards = allCards.filter(card => !playedCards.has(card.id));
-        console.log('📊 Available cards:', availableCards.length);
+        console.log('🔍 Card tracking:');
+        console.log('✋ Cards in hands:', [...handCardIds]);
+        console.log('🎭 Played cards:', [...playedCardIds]);
+
+        // Find available cards (not in any hand AND not played)
+        const availableCards = allCards.filter(card => {
+          const notInHand = !handCardIds.has(card.id);
+          const notPlayed = !playedCardIds.has(card.id);
+          const isAvailable = isCardAvailableToDraw(card, playerName, playedCardIds);
+          
+          if (!notInHand) console.log(`❌ Card ${card.id} is in a hand`);
+          if (!notPlayed) console.log(`❌ Card ${card.id} has been played`);
+          if (!isAvailable) console.log(`❌ Card ${card.id} is not available to draw`);
+          
+          return notInHand && notPlayed && isAvailable;
+        });
+
+        console.log(`📊 Available cards (${availableCards.length}):`, availableCards.map(c => c.id));
 
         if (availableCards.length === 0) {
           console.warn('🚫 No cards available');
@@ -382,10 +441,22 @@ export default function ScenekortTab({ gameState }) {
 
         // Draw cards
         const newCards = availableCards.slice(0, cardsNeeded);
-        console.log('🎴 Drew card:', newCards.map(c => c.title).join(', '));
+        console.log('🎴 Drew cards:', newCards.map(c => `${c.id} (${c.title})`));
 
         // Update hand
         game.sceneCards.hands[playerName] = [...currentHand, ...newCards];
+        
+        // Update ownership for non-utility cards
+        newCards.forEach(card => {
+          if (!['Breathing', 'Development', 'Exploration', 'Plan', 'Change'].includes(card.type)) {
+            const normalizedPlayerId = normalizePlayerId(playerName);
+            game.sceneCards.cards = game.sceneCards.cards.map(c => 
+              c.id === card.id ? { ...c, playerId: normalizedPlayerId } : c
+            );
+          }
+        });
+
+        console.log('✨ Updated hand:', game.sceneCards.hands[playerName].map(c => c.id));
         return game;
       });
     } catch (err) {
@@ -397,25 +468,30 @@ export default function ScenekortTab({ gameState }) {
   const playCard = async (cardId) => {
     setActioningCards(prev => new Set([...prev, cardId]));
     try {
-      await runTransaction(ref(db, `games/${gameId}`), (game) => {
-        if (!game || !game.sceneCards?.hands?.[playerName]) return game;
+      await runTransaction(ref(db, `games/${gameId}/sceneCards`), (data) => {
+        if (!data || !data.hands?.[playerName]) return data;
 
-        const currentHand = game.sceneCards.hands[playerName];
+        const currentHand = data.hands[playerName];
         const playedCard = currentHand.find(c => c.id === cardId);
         
-        if (!playedCard) return game;
+        if (!playedCard) return data;
 
         // Remove card from hand
-        game.sceneCards.hands[playerName] = currentHand.filter(c => c.id !== cardId);
+        data.hands[playerName] = currentHand.filter(c => c.id !== cardId);
+
+        // Initialize played array if it doesn't exist
+        if (!Array.isArray(data.played)) {
+          data.played = [];
+        }
 
         // Add to played cards history
-        game.sceneCards.played = game.sceneCards.played || {};
-        game.sceneCards.played[Date.now()] = {
+        data.played.push({
           playerId: playerName,
-          card: playedCard
-        };
+          card: playedCard,
+          timestamp: Date.now()
+        });
 
-        return game;
+        return data;
       });
 
       // Draw a new card
@@ -458,7 +534,8 @@ export default function ScenekortTab({ gameState }) {
             playerId: normalizedPlayerId // Note: we use playerId (capital I) in our app
           };
         }),
-        hands: {} // Clear all hands
+        hands: {}, // Clear all hands
+        played: [] // Initialize as empty array
       };
       
       console.log('💾 Saving reset data:', resetData);
@@ -500,7 +577,8 @@ export default function ScenekortTab({ gameState }) {
           
           await set(sceneCardsRef, {
             cards: sheetCards,
-            hands: {}
+            hands: {},
+            played: [] // Initialize as empty array
           });
           console.log('✅ Scene cards initialized');
         }
@@ -582,7 +660,14 @@ export default function ScenekortTab({ gameState }) {
         {/* Deck Status */}
         <div className="mb-4">
           <div className={`text-sm ${deckStatus.available <= playerCount ? 'text-red-600 font-bold' : 'text-gray-600'}`}>
-            {deckStatus.available <= playerCount ? (
+            {deckStatus.available === 0 ? (
+              <div className="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                Ingen flere kort tilgjengelig. Trykk på "Tilbakestill scenekort" for å starte på nytt.
+              </div>
+            ) : deckStatus.available <= playerCount ? (
               <div className="flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
