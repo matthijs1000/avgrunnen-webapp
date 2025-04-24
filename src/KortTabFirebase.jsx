@@ -383,12 +383,12 @@ export default function KortTabFirebase() {
           <ul className="space-y-2 mb-4">
             {hand.map((card) => (
               <li key={card.id} className="p-3 bg-white rounded shadow">
-                <h3 className="font-medium">{card.title}</h3>
+                <h3 className="font-bold">{card.title}</h3>
                 {card.text && <p className="text-sm text-gray-600 mt-1">{card.text}</p>}
-                {card.image && card.image.startsWith('http') && (
+                {card.image && (
                   <div className="my-2">
                     <img 
-                      src={card.image} 
+                      src={card.image.startsWith('http') ? card.image : card.image}
                       alt={card.title}
                       className="w-full h-48 object-cover rounded"
                       onError={(e) => {
