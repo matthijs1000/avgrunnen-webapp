@@ -12,99 +12,7 @@ import {
   orderByChild,
   limitToLast,
 } from 'firebase/database';
-
-// Initial cards deck
-const initialCards = [
-  { 
-    id: '1', 
-    title: 'Mørket kommer', 
-    text: 'Alt lys slukner. En rå frykt brer seg.',
-    image: '/images/cards/darkness.jpg'
-  },
-  { 
-    id: '2', 
-    title: 'Et tap', 
-    text: 'Du mister noe dyrebart – eller noen.',
-    image: '/images/cards/loss.jpg'
-  },
-  { 
-    id: '3', 
-    title: 'Fristelse', 
-    text: 'Noe du ønsker ligger foran deg. Men hva koster det?',
-    image: '/images/cards/temptation.jpg'
-  },
-  { 
-    id: '4', 
-    title: 'Skjult viten', 
-    text: 'Du får innblikk i noe som ikke var ment for deg.' 
-  },
-  { 
-    id: '5', 
-    title: 'Den sanne fienden', 
-    text: 'En venn viser seg å være noe helt annet.',
-    image: '/images/cards/enemy.jpg'
-  },
-  { 
-    id: '6', 
-    title: 'Et nytt valg', 
-    text: 'Du står ved en korsvei. Du må velge – og velger feil.' 
-  },
-  { 
-    id: '7', 
-    title: 'En uventet alliert', 
-    text: 'Noen du ikke stolte på viser seg å være din største støtte.',
-    image: '/images/cards/ally.jpg'
-  },
-  { 
-    id: '8', 
-    title: 'Tapte minner', 
-    text: 'Et øyeblikk av klarhet i en tåket tilstand.' 
-  },
-  { 
-    id: '9', 
-    title: 'Skjebnens ironi', 
-    text: 'Det du fryktet mest blir din redning.',
-    image: '/images/cards/irony.jpg'
-  },
-  { 
-    id: '10', 
-    title: 'En løgn avsløres', 
-    text: 'Sannheten kommer frem, men er det for sent?' 
-  },
-  { 
-    id: '11', 
-    title: 'Et gammelt sår', 
-    text: 'Noe fra fortiden dukker opp og må håndteres.',
-    image: '/images/cards/wound.jpg'
-  },
-  { 
-    id: '12', 
-    title: 'En ny begynnelse', 
-    text: 'Alt du trodde du visste, viser seg å være feil.' 
-  },
-  { 
-    id: '13', 
-    title: 'Skjult fare', 
-    text: 'Det som ser trygt ut, er faktisk farlig.',
-    image: '/images/cards/danger.jpg'
-  },
-  { 
-    id: '14', 
-    title: 'Uventet gave', 
-    text: 'Noen gir deg noe du ikke visste du trengte.' 
-  },
-  { 
-    id: '15', 
-    title: 'Tapte muligheter', 
-    text: 'En sjanse du ikke tok, kommer tilbake.',
-    image: '/images/cards/opportunity.jpg'
-  },
-  { 
-    id: '16', 
-    title: 'En vanskelig sannhet', 
-    text: 'Du må velge mellom å vite sannheten eller leve i uvitenhet.' 
-  }
-];
+import { fetchCardsFromSheet } from './utils/sheetsConfig';
 
 const HAND_SIZE = 5;
 const NOTIFICATION_LIMIT = 5; // Number of notifications to show
@@ -149,12 +57,18 @@ export default function KortTabFirebase() {
     try {
       const gameSnapshot = await get(ref(db, `games/${gameId}`));
       if (!gameSnapshot.exists()) {
+        // Fetch cards from Google Sheets
+        const sheetCards = await fetchCardsFromSheet();
+        if (sheetCards.length === 0) {
+          throw new Error('No cards found in the sheet');
+        }
+        
         await set(ref(db, `games/${gameId}`), {
-          cards: initialCards,
+          cards: sheetCards,
           discard: [],
           hands: {}
         });
-        console.log('🎲 Initialized new game with cards');
+        console.log('🎲 Initialized new game with cards from sheet');
       }
     } catch (err) {
       console.error('Failed to initialize game:', err);
@@ -354,12 +268,18 @@ export default function KortTabFirebase() {
   const resetGame = async () => {
     setIsLoading(true);
     try {
+      // Fetch fresh cards from Google Sheets
+      const sheetCards = await fetchCardsFromSheet();
+      if (sheetCards.length === 0) {
+        throw new Error('No cards found in the sheet');
+      }
+
       await set(ref(db, `games/${gameId}`), {
-        cards: initialCards,
+        cards: sheetCards,
         discard: [],
         hands: {}
       });
-      console.log('🔄 Reset game to initial state');
+      console.log('🔄 Reset game with fresh cards from sheet');
       await loadHand();
       setShowResetConfirm(false);
     } catch (err) {
@@ -510,16 +430,8 @@ export default function KortTabFirebase() {
 
       <div className="space-y-2">
         <button 
-          onClick={fillHand}
-          disabled={isLoading || hand.length >= HAND_SIZE}
-          className="w-full py-2 bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50"
-        >
-          {isLoading ? 'Trekker kort...' : hand.length >= HAND_SIZE ? 'Hånden er full' : 'Fyll hånden'}
-        </button>
-        
-        <button 
           onClick={() => setShowResetConfirm(true)}
-          className="w-full py-2 mt-4 bg-red-600 text-white rounded hover:bg-red-700"
+          className="w-full py-2 bg-red-600 text-white rounded hover:bg-red-700"
         >
           Tilbakestill spill
         </button>
