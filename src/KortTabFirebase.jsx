@@ -105,23 +105,22 @@ export default function KortTabFirebase() {
         // Get all cards that are currently in play
         const playedOrHeldIds = new Set([
           ...Object.values(allHands).flat().map(card => card.id),
-          ...(discard || []).map(card => card.id),
+          ...(discard || []).map(card => card.id)
         ]);
         
         // Create a copy of all cards that we can modify
-        let availableCards = [...allCards];
-
-        // Remove cards that are already in play
-        availableCards = availableCards.filter(card => !playedOrHeldIds.has(card.id));
+        let availableCards = allCards.filter(card => !playedOrHeldIds.has(card.id));
 
         console.log(`▶️ Forsøker å trekke ${cardsNeeded} kort. Tilgjengelige kort:`, availableCards.length);
 
+        // If no cards available and we have discarded cards, shuffle them back in
         if (availableCards.length === 0 && discard.length > 0) {
           console.log('♻️ Stokker discard tilbake i bunken');
           availableCards = [...discard];
           game.discard = [];
         }
 
+        // If still no cards available after trying discard pile
         if (availableCards.length === 0) {
           console.warn('🚫 Ingen kort tilgjengelig');
           return game;
@@ -133,9 +132,11 @@ export default function KortTabFirebase() {
           [availableCards[i], availableCards[j]] = [availableCards[j], availableCards[i]];
         }
 
-        // Take the first cardsNeeded cards
-        const newCards = availableCards.slice(0, cardsNeeded);
+        // Take cards up to cardsNeeded or available cards length
+        const numCardsToDraw = Math.min(cardsNeeded, availableCards.length);
+        const newCards = availableCards.slice(0, numCardsToDraw);
 
+        // Update the player's hand
         game.hands = game.hands || {};
         game.hands[playerName] = [...currentHand, ...newCards];
 

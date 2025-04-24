@@ -1,0 +1,13 @@
+{
+  "rules": {
+    "games": {
+      "$gameId": {
+        ".read": true,
+        ".write": true,
+        "played": {
+          ".indexOn": ["timestamp"]
+        }
+      }
+    }
+  }
+} 
