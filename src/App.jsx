@@ -8,7 +8,7 @@ import RulesTab from "./RulesTab";
 import RegissorTab from "./RegissorTab";
 import ScenekortTab from "./ScenekortTab";
 import { db } from './firebaseConfig';
-import { ref, get, set, onValue } from 'firebase/database';
+import { ref, get, set, onValue, runTransaction } from 'firebase/database';
 import { fetchSceneCards, fetchDramaCards } from './utils/sheetsConfig';
 
 export default function AvgrunnenApp() {
@@ -31,19 +31,7 @@ export default function AvgrunnenApp() {
         throw new Error('No player name found');
       }
 
-      const playerRef = ref(db, `games/${gameId}/players/${name}`);
-      const playerSnap = await get(playerRef);
-      
-      if (!playerSnap.exists()) {
-        await set(playerRef, {
-          character: character || name,
-          joinedAt: Date.now()
-        });
-        console.log('🎭 Registered player:', name);
-      }
-      setIsPlayerRegistered(true);
-      
-      // Then initialize game if needed
+      // Initialize game if needed first
       const gameRef = ref(db, `games/${gameId}`);
       const gameSnap = await get(gameRef);
       
@@ -69,16 +57,27 @@ export default function AvgrunnenApp() {
           hands: {},
           discard: [],
           played: {},
-          players: {
-            [name]: {
-              character: character || name,
-              joinedAt: Date.now()
-            }
-          }
+          players: {}
         });
         console.log('✅ Game initialized successfully');
       }
 
+      // Then register player
+      const playerRef = ref(db, `games/${gameId}/players/${name}`);
+      await runTransaction(playerRef, (currentData) => {
+        if (currentData === null) {
+          return {
+            character: character || name,
+            joinedAt: Date.now()
+          };
+        }
+        // If player exists, don't modify the data
+        return currentData;
+      });
+      console.log('🎭 Player registration complete:', name);
+      
+      // Set registration status after successful registration
+      setIsPlayerRegistered(true);
       return true;
     } catch (err) {
       console.error('Failed to initialize game:', err);
@@ -89,7 +88,7 @@ export default function AvgrunnenApp() {
     }
   };
 
-  // Monitor player registration status
+  // Monitor player registration status - this ensures real-time updates
   useEffect(() => {
     const name = localStorage.getItem("name");
     const gameId = localStorage.getItem("gameId");
@@ -99,6 +98,7 @@ export default function AvgrunnenApp() {
       return;
     }
 
+    console.log('👀 Monitoring player registration for:', name);
     const playerRef = ref(db, `games/${gameId}/players/${name}`);
     const unsubscribe = onValue(playerRef, (snapshot) => {
       const isRegistered = snapshot.exists();
@@ -109,20 +109,21 @@ export default function AvgrunnenApp() {
     return () => unsubscribe();
   }, []);
 
-  // Handle initial load
+  // Handle initial load - only runs once when component mounts
   useEffect(() => {
     const name = localStorage.getItem("name");
     const gameId = localStorage.getItem("gameId");
-    console.log("📝 Loading from localStorage:", { name, gameId });
+    console.log("📝 Initial load check:", { name, gameId });
     
     if (!name || !gameId) {
       console.log('⏳ Waiting for name and gameId...');
       return;
     }
 
+    // Ensure game is initialized and player is registered
     initializeGameData(gameId)
       .then(() => {
-        console.log('🎮 Game ready');
+        console.log('🎮 Game and player ready');
         setReady(true);
       })
       .catch((err) => {
@@ -136,8 +137,12 @@ export default function AvgrunnenApp() {
   const handleSubmit = async ({ name, gameId }) => {
     try {
       setError(null);
+      setReady(false); // Reset ready state
+      setIsPlayerRegistered(false); // Reset registration state
+      
       localStorage.setItem("name", name);
       localStorage.setItem("gameId", gameId);
+      
       await initializeGameData(gameId);
       setReady(true);
     } catch (err) {
