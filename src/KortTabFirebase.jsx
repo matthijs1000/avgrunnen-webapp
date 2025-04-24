@@ -15,7 +15,7 @@ import {
 import { fetchCardsFromSheet } from './utils/sheetsConfig';
 
 const HAND_SIZE = 5;
-const NOTIFICATION_LIMIT = 5; // Number of notifications to show
+const NOTIFICATION_LIMIT = 10; // Increased limit since we'll have more space
 
 export default function KortTabFirebase() {
   const [hand, setHand] = useState([]);
@@ -24,6 +24,10 @@ export default function KortTabFirebase() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [deckStatus, setDeckStatus] = useState({ total: 0, available: 0, discarded: 0 });
+  const [actioningCards, setActioningCards] = useState(new Set());
+  const [currentView, setCurrentView] = useState('hand'); // 'hand' or 'notifications'
+  const [touchStart, setTouchStart] = useState(null);
+  const [newNotificationIds, setNewNotificationIds] = useState(new Set());
 
   const playerName = localStorage.getItem('name');
   const gameId = localStorage.getItem('gameId');
@@ -45,12 +49,55 @@ export default function KortTabFirebase() {
         const notificationsList = Object.values(played)
           .sort((a, b) => b.timestamp - a.timestamp)
           .slice(0, NOTIFICATION_LIMIT);
+        
+        // Mark new notifications
+        const currentIds = new Set(notifications.map(n => n.timestamp));
+        const newIds = new Set(
+          notificationsList
+            .filter(n => !currentIds.has(n.timestamp))
+            .map(n => n.timestamp)
+        );
+        
+        setNewNotificationIds(newIds);
         setNotifications(notificationsList);
+
+        // Clear "new" status after 2 seconds
+        if (newIds.size > 0) {
+          setTimeout(() => {
+            setNewNotificationIds(prev => {
+              const updated = new Set(prev);
+              newIds.forEach(id => updated.delete(id));
+              return updated;
+            });
+          }, 2000);
+        }
       }
     });
 
     return () => unsubscribe();
   }, [gameId]);
+
+  // Handle touch events for swipe
+  const handleTouchStart = (e) => {
+    setTouchStart(e.touches[0].clientX);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!touchStart) return;
+
+    const currentTouch = e.touches[0].clientX;
+    const diff = touchStart - currentTouch;
+
+    // Require at least 50px swipe
+    if (Math.abs(diff) > 50) {
+      setCurrentView(diff > 0 ? 'notifications' : 'hand');
+      setTouchStart(null);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setTouchStart(null);
+  };
 
   // Initialize game if needed
   const initializeGameIfNeeded = async () => {
@@ -152,7 +199,7 @@ export default function KortTabFirebase() {
   };
 
   const discardCard = async (cardId) => {
-    setIsLoading(true);
+    setActioningCards(prev => new Set([...prev, cardId]));
     try {
       await runTransaction(ref(db, `games/${gameId}`), (game) => {
         if (!game || !game.hands?.[playerName]) return game;
@@ -205,12 +252,16 @@ export default function KortTabFirebase() {
       console.error('Failed to discard card:', err);
       setError('Kunne ikke kaste kortet. Prøv igjen.');
     } finally {
-      setIsLoading(false);
+      setActioningCards(prev => {
+        const next = new Set(prev);
+        next.delete(cardId);
+        return next;
+      });
     }
   };
 
   const playCard = async (cardId) => {
-    setIsLoading(true);
+    setActioningCards(prev => new Set([...prev, cardId]));
     try {
       await runTransaction(ref(db, `games/${gameId}`), (game) => {
         if (!game || !game.hands?.[playerName]) return game;
@@ -236,17 +287,49 @@ export default function KortTabFirebase() {
           timestamp: Date.now(),
         };
 
+        // Draw a new card immediately
+        const allCards = game.cards || [];
+        const allHands = game.hands || {};
+
+        // Ensure all hands are arrays
+        Object.keys(allHands).forEach(player => {
+          allHands[player] = Array.isArray(allHands[player]) ? allHands[player] : [];
+        });
+
+        const playedOrHeldIds = new Set([
+          ...Object.values(allHands).flat().map(card => card.id),
+          ...(game.discard || []).map(card => card.id),
+        ]);
+        
+        const available = allCards.filter((card) => !playedOrHeldIds.has(card.id));
+
+        if (available.length === 0 && game.discard.length > 0) {
+          // If no cards available, shuffle discard back in (except for the card we just played)
+          const oldDiscard = game.discard.slice(0, -1); // All but the last card (which we just played)
+          available.push(...oldDiscard);
+          game.discard = [playedCard]; // Keep only the just-played card
+        }
+
+        if (available.length > 0) {
+          const randomIndex = Math.floor(Math.random() * available.length);
+          const newCard = available[randomIndex];
+          game.hands[playerName] = [...updatedHand, newCard];
+        }
+
         console.log(`🎭 Spiller kort: ${cardId}`);
         return game;
       });
 
-      // Draw a new card automatically after playing
-      await fillHand();
+      await loadHand();
     } catch (err) {
       console.error('Failed to play card:', err);
       setError('Kunne ikke spille kortet. Prøv igjen.');
     } finally {
-      setIsLoading(false);
+      setActioningCards(prev => {
+        const next = new Set(prev);
+        next.delete(cardId);
+        return next;
+      });
     }
   };
 
@@ -359,82 +442,148 @@ export default function KortTabFirebase() {
   }
 
   return (
-    <div className="p-4">
-      <h2 className="text-xl font-bold mb-4">Hånden din ({hand.length}/{HAND_SIZE})</h2>
-      {isLoading ? (
-        <p>Laster...</p>
-      ) : (
-        <>
-          <div className="mb-4 text-sm text-gray-600">
-            <p>Kort i bunken: {deckStatus.available}</p>
-            <p>Kastede kort: {deckStatus.discarded}</p>
-            {deckStatus.available === 0 && deckStatus.discarded === 0 && (
-              <div className="mt-2 p-2 bg-yellow-50 text-yellow-800 rounded">
-                <p className="font-medium">Bunken er tom!</p>
-                <button 
-                  onClick={() => setShowResetConfirm(true)}
-                  className="mt-2 text-sm text-yellow-800 underline hover:text-yellow-900"
-                >
-                  Tilbakestill spillet
-                </button>
-              </div>
-            )}
-          </div>
-          <ul className="space-y-2 mb-4">
-            {hand.map((card) => (
-              <li key={card.id} className="p-3 bg-white rounded shadow">
-                <h3 className="font-bold">{card.title}</h3>
-                {card.text && <p className="text-sm text-gray-600 mt-1">{card.text}</p>}
-                {card.image && (
-                  <div className="my-2">
-                    <img 
-                      src={card.image.startsWith('http') ? card.image : card.image}
-                      alt={card.title}
-                      className="w-full h-48 object-cover rounded"
-                      onError={(e) => {
-                        console.log('Failed to load image:', card.image);
-                        e.target.style.display = 'none';
-                      }}
-                    />
-                  </div>
-                )}
-                <div className="mt-2 flex gap-2">
+    <div 
+      className="p-4"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold">
+          {currentView === 'hand' ? `Hånden din (${hand.length}/${HAND_SIZE})` : 'Siste hendelser'}
+        </h2>
+        <button
+          onClick={() => setCurrentView(currentView === 'hand' ? 'notifications' : 'hand')}
+          className="text-sm text-gray-600 hover:text-gray-900"
+        >
+          {currentView === 'hand' ? 'Vis hendelser →' : '← Tilbake til hånd'}
+        </button>
+      </div>
+
+      <div className="relative overflow-hidden">
+        <div 
+          className="flex transition-transform duration-300 ease-in-out" 
+          style={{ 
+            transform: `translateX(${currentView === 'hand' ? '0%' : '-100%'})`,
+            width: '200%'
+          }}
+        >
+          <div className="w-full flex-shrink-0">
+            {/* Hand View */}
+            <div className="mb-4 text-sm text-gray-600">
+              <p>Kort i bunken: {deckStatus.available}</p>
+              <p>Kastede kort: {deckStatus.discarded}</p>
+              {deckStatus.available === 0 && deckStatus.discarded === 0 && (
+                <div className="mt-2 p-2 bg-yellow-50 text-yellow-800 rounded">
+                  <p className="font-medium">Bunken er tom!</p>
                   <button 
-                    onClick={() => playCard(card.id)}
-                    className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200"
+                    onClick={() => setShowResetConfirm(true)}
+                    className="mt-2 text-sm text-yellow-800 underline hover:text-yellow-900"
                   >
-                    Spill
-                  </button>
-                  <button 
-                    onClick={() => discardCard(card.id)}
-                    className="px-3 py-1 text-sm bg-red-100 text-red-600 rounded hover:bg-red-200"
-                  >
-                    Kast
+                    Tilbakestill spillet
                   </button>
                 </div>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+              )}
+            </div>
+            <ul className="space-y-4">
+              {hand.map((card) => (
+                <li 
+                  key={card.id} 
+                  className={`p-4 bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-200 border border-gray-100 ${
+                    actioningCards.has(card.id) ? 'opacity-50 pointer-events-none' : ''
+                  }`}
+                >
+                  <h3 className="text-lg font-bold mb-2 text-gray-800">{card.title}</h3>
+                  {card.text && (
+                    <p className="text-sm text-gray-600 mb-3 leading-relaxed">
+                      {card.text}
+                    </p>
+                  )}
+                  {card.image && (
+                    <div className="mb-4 rounded-md overflow-hidden shadow-sm">
+                      <img 
+                        src={card.image.startsWith('http') ? card.image : card.image}
+                        alt={card.title}
+                        className="w-full h-48 object-cover hover:scale-105 transition-transform duration-200"
+                        onError={(e) => {
+                          console.log('Failed to load image:', card.image);
+                          e.target.style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  )}
+                  <div className="flex gap-3 mt-auto">
+                    <button 
+                      onClick={() => playCard(card.id)}
+                      disabled={actioningCards.has(card.id)}
+                      className={`
+                        flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors duration-200
+                        ${actioningCards.has(card.id)
+                          ? 'bg-gray-100 text-gray-400'
+                          : 'bg-green-100 text-green-700 hover:bg-green-200'
+                        }
+                      `}
+                    >
+                      {actioningCards.has(card.id) ? 'Spiller...' : 'Spill'}
+                    </button>
+                    <button 
+                      onClick={() => discardCard(card.id)}
+                      disabled={actioningCards.has(card.id)}
+                      className={`
+                        flex-1 px-4 py-2 text-sm font-medium rounded-md transition-colors duration-200
+                        ${actioningCards.has(card.id)
+                          ? 'bg-gray-100 text-gray-400'
+                          : 'bg-red-100 text-red-600 hover:bg-red-200'
+                        }
+                      `}
+                    >
+                      {actioningCards.has(card.id) ? 'Kaster...' : 'Kast'}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
 
-      <div className="mt-6 bg-black/5 rounded-lg p-4">
-        <h3 className="text-lg font-semibold mb-2">Siste hendelser</h3>
-        {notifications.length === 0 ? (
-          <p className="text-gray-500 italic">Ingen kort er spilt ennå</p>
-        ) : (
-          <ul className="space-y-2">
-            {notifications.map((notification) => (
-              <li 
-                key={notification.timestamp} 
-                className="text-sm bg-white p-2 rounded shadow-sm"
-              >
-                <span className="font-medium">{notification.playerId}</span> spilte kortet{' '}
-                <span className="font-medium">{notification.card.title}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+          <div className="w-full flex-shrink-0">
+            {/* Notifications View */}
+            <ul className="space-y-3">
+              {notifications.map((notification) => {
+                const timeAgo = new Date(notification.timestamp).toLocaleTimeString('no-NO', {
+                  hour: '2-digit',
+                  minute: '2-digit'
+                });
+                
+                const isNew = newNotificationIds.has(notification.timestamp);
+                
+                return (
+                  <li 
+                    key={notification.timestamp} 
+                    className={`bg-white p-3 rounded-md shadow-sm border border-gray-100 transition-all duration-300 ${
+                      isNew ? 'animate-slide-in border-green-500' : ''
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="font-medium text-gray-900">{notification.playerId}</span>
+                        <span className="text-gray-600"> spilte </span>
+                        <span className="font-medium text-gray-900">{notification.card.title}</span>
+                      </div>
+                      <span className="text-sm text-gray-500 whitespace-nowrap">
+                        {timeAgo}
+                      </span>
+                    </div>
+                    {notification.card.text && (
+                      <p className="mt-1 text-sm text-gray-600 italic">
+                        "{notification.card.text}"
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
       </div>
 
       <div className="space-y-2">
