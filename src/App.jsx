@@ -6,6 +6,7 @@ import NameAndGame from "./NameAndGame";
 import KortTabFirebase from "./KortTabFirebase";
 import RulesTab from "./RulesTab";
 import RegissorTab from "./RegissorTab";
+import ScenekortTab from "./ScenekortTab";
 
 export default function AvgrunnenApp() {
   const [ready, setReady] = useState(false);
@@ -34,9 +35,7 @@ export default function AvgrunnenApp() {
           </TabsContent>
 
           <TabsContent value="scenekort" className="mt-4">
-            <div className="text-center">
-              <p className="mb-2">Scenekort kommer snart...</p>
-            </div>
+            <ScenekortTab />
           </TabsContent>
 
           <TabsContent value="kart" className="mt-4">

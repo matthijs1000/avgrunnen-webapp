@@ -1,14 +1,25 @@
-
 import React, { useState } from "react"
+import { db } from './firebaseConfig';
+import { ref, set } from 'firebase/database';
 
 export default function NameAndGame({ onSubmit }) {
   const [name, setName] = useState("")
   const [gameId, setGameId] = useState("")
+  const [character, setCharacter] = useState("")
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
+    
+    // Store in localStorage
     localStorage.setItem("name", name)
     localStorage.setItem("gameId", gameId)
+    localStorage.setItem("character", character)
+    
+    // Store in Firebase
+    await set(ref(db, `games/${gameId}/players/${name}`), {
+      character: character
+    });
+    
     onSubmit({ name, gameId })
   }
 
@@ -23,6 +34,16 @@ export default function NameAndGame({ onSubmit }) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
+          />
+        </div>
+        <div>
+          <label className="block mb-1 font-medium">Karakternavn:</label>
+          <input
+            className="border p-2 rounded w-full"
+            value={character}
+            onChange={(e) => setCharacter(e.target.value)}
+            required
+            placeholder="F.eks. Adele"
           />
         </div>
         <div>

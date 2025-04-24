@@ -12,7 +12,7 @@ import {
   orderByChild,
   limitToLast,
 } from 'firebase/database';
-import { fetchCardsFromSheet } from './utils/sheetsConfig';
+import { fetchDramaCards } from './utils/sheetsConfig';
 
 const HAND_SIZE = 5;
 const NOTIFICATION_LIMIT = 10; // Increased limit since we'll have more space
@@ -105,7 +105,7 @@ export default function KortTabFirebase() {
       const gameSnapshot = await get(ref(db, `games/${gameId}`));
       if (!gameSnapshot.exists()) {
         // Fetch cards from Google Sheets
-        const sheetCards = await fetchCardsFromSheet();
+        const sheetCards = await fetchDramaCards();
         if (sheetCards.length === 0) {
           throw new Error('No cards found in the sheet');
         }
@@ -366,7 +366,7 @@ export default function KortTabFirebase() {
     setIsLoading(true);
     try {
       // Fetch fresh cards from Google Sheets
-      const sheetCards = await fetchCardsFromSheet();
+      const sheetCards = await fetchDramaCards();
       if (sheetCards.length === 0) {
         throw new Error('No cards found in the sheet');
       }

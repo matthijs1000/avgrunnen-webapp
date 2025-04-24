@@ -1,9 +1,11 @@
 // Google Sheets configuration
-export const SHEET_ID = '1CS9CjOEJlG0etC8JI117DTY-FRU9Pstm20De_iuxtK4'; // User's sheet ID
-export const SHEET_NAME = 'Cards';
+export const SHEET_ID = '1CS9CjOEJlG0etC8JI117DTY-FRU9Pstm20De_iuxtK4';
+export const DRAMA_SHEET_NAME = 'Dramakort';
+export const SCENE_SHEET_NAME = 'Scenekort';
 
 // Required columns in the sheet
-const REQUIRED_COLUMNS = ['id', 'title', 'text'];
+const DRAMA_REQUIRED_COLUMNS = ['id', 'title', 'text'];
+const SCENE_REQUIRED_COLUMNS = ['id', 'title', 'text', 'playerId'];
 
 // Function to parse CSV properly handling quoted fields
 function parseCSVRow(row) {
@@ -38,11 +40,12 @@ function parseCSVRow(row) {
 }
 
 // Function to validate card data
-function validateCard(card, rowIndex) {
+function validateCard(card, rowIndex, isSceneCard = false) {
   const errors = [];
+  const requiredColumns = isSceneCard ? SCENE_REQUIRED_COLUMNS : DRAMA_REQUIRED_COLUMNS;
   
-  REQUIRED_COLUMNS.forEach(column => {
-    if (!card[column]) {
+  requiredColumns.forEach(column => {
+    if (!card[column] && column !== 'playerId') { // playerId can be empty initially
       errors.push(`Missing ${column} in row ${rowIndex + 2}`);
     }
   });
@@ -54,11 +57,12 @@ function validateCard(card, rowIndex) {
   return errors;
 }
 
-// Function to fetch cards from Google Sheets
-export async function fetchCardsFromSheet() {
+// Function to fetch cards from a specific sheet
+async function fetchCardsFromSheet(sheetName) {
   try {
+    const isSceneCard = sheetName === SCENE_SHEET_NAME;
     // Using the public CSV export URL
-    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${SHEET_NAME}`;
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${sheetName}`;
     console.log('🔄 Fetching cards from:', url);
     
     const response = await fetch(url);
@@ -81,9 +85,10 @@ export async function fetchCardsFromSheet() {
     const headers = rows[0].map(h => h.toLowerCase());
     console.log('👀 Found headers:', headers);
     
-    const missingColumns = REQUIRED_COLUMNS.filter(col => !headers.includes(col));
+    const requiredColumns = isSceneCard ? SCENE_REQUIRED_COLUMNS : DRAMA_REQUIRED_COLUMNS;
+    const missingColumns = requiredColumns.filter(col => !headers.includes(col));
     
-    if (missingColumns.length > 0) {
+    if (missingColumns.length > 0 && !isSceneCard) {
       throw new Error(`Missing required columns: ${missingColumns.join(', ')}`);
     }
 
@@ -98,7 +103,7 @@ export async function fetchCardsFromSheet() {
       });
 
       // Validate card data
-      const cardErrors = validateCard(card, index);
+      const cardErrors = validateCard(card, index, isSceneCard);
       if (cardErrors.length === 0) {
         cards.push(card);
       } else {
@@ -122,6 +127,16 @@ export async function fetchCardsFromSheet() {
 
   } catch (error) {
     console.error('❌ Error fetching cards:', error);
-    throw error; // Let the component handle the error
+    return []; // Return empty array instead of throwing
   }
+}
+
+// Function to fetch drama cards
+export async function fetchDramaCards() {
+  return fetchCardsFromSheet(DRAMA_SHEET_NAME);
+}
+
+// Function to fetch scene cards
+export async function fetchSceneCards() {
+  return fetchCardsFromSheet(SCENE_SHEET_NAME);
 } 
