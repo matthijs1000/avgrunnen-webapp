@@ -1,0 +1,74 @@
+This is an app to help a group of people play a game called "Avgrunnen".
+Groups are usually 3-5 people, and play in person or online.
+
+The app will help the group to run the game, with tools to help the group to run the game.
+
+The game is a mix of:
+- A story
+- A setting
+- A group of characters
+
+The current Mysteries to choose from are:
+- Nyarlathotep (the Crawling Chaos)
+- The Black Goat of the Woods (Shub-Niggurath)
+
+The physical components of the game are:
+- A deck of Drama cards that are played by anyone at any time. They are marked with a number 1-3 showing what Act they can be played in.
+- A deck of Scene cards that are played by the Director. They are marked with a number 1-3 showing what Act they can be played in.
+- A deck of Character cards of two types, Background and Occupation, that are used to create the characters.
+- A few Mystery-specific Drama cards.
+- Three Mystery-specific Act cards for each Act.
+- A map with locations.
+- Stickers with Mystery Locations to be placed on the map
+- Stickers with Character Statuses to be placed on the Character cards
+- Stickers with Mystery Status to be placed on Locations, Factions and Scene Cards
+- A diagram of Factions and their relations to each other, to be placed on the map
+
+More about Scene cards:
+- Scene cards are of different types, and have different effects. 
+- The types are: Relationship, Goal, Discovery, Development, Change, Plan.
+- Relationship cards show the relationship between a player character and a secondary character.
+- Goal cards show the goal of a player character, and what stands in the way of achieving it.
+- Exploration cards let a player explore a location they have previously chosen.
+- Development cards show a plot development the characters are not present at.
+- Change cards show how the Mystery interacts with a Location or Faction, and lets the player put a sticker on a Location or Faction.
+- Plan cards show secondary characters planning around a player character.
+- Scene cards are never discarded, only played.
+
+The game flow is as follows:
+- Setup: 
+- Making characters by picking Character, Relationship and Goal cards
+- choosing a setting (or using the default)
+- Choosing a Mystery
+
+- Play: 
+- Players take turn to be the Director, and play Scene cards to set the scene.
+- The other players play Drama cards to affect the story, show character depth, describe the environment and similar.
+- The Director chooses a Location for the Scene card.
+- The Director chooses a Direction for the scene, if it is a Relationship or Goal scene. 
+- One other player will usually play the secondary character in a Relationship or Goal scene.
+- The Director can also assign other players to play other secondary characters.
+- Nobody can have their own Scene cards in their hand - only those owned by other players, or by nobody.
+- When all Scene cards are used, the game goes on to the next Act.
+- There are three Acts in the game.
+- Every Act starts with a random Act card with some Mystery event that kicks things off.
+- After the third Act, the game ends.
+- At the end of each Act, there are specific rules for what cards to add or remove from the decks.
+
+Acts:
+  - 1: Introduksjon, relasjoner, mål, rollefokus.
+  - 2: Komplikasjoner, mysteriet viser seg.
+  - 3: Konsekvenser, avslutning, epilog.
+
+Drama cards:
+- Can be played at any time by any player, including the Director.
+- Can be discarded at any time.
+- When the deck is empty, the discard pile is shuffled and the game continues.
+- For each act, only the Drama cards that are relevant to the act are used.
+- Each Mystery has a set of specific Drama cards.
+
+After each session:
+- All Drama cards are shuffled back into the deck.
+- Unplayed Scene cards are collected and used as a starting point for the next session.
+- Played Scene cards are not played again in this Act.
+

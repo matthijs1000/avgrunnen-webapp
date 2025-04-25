@@ -38,7 +38,7 @@ const isCardAvailableToDraw = (card, playerName, playedCards) => {
     isOwnedByPlayer: cardPlayerId === currentPlayerName,
     hasNoOwner: !cardPlayerId
   });
-  
+  console.log('🎴 Card is available to draw:', !playedCards.has(card.id) && (!cardPlayerId || cardPlayerId !== currentPlayerName));
   return !playedCards.has(card.id) && (!cardPlayerId || cardPlayerId !== currentPlayerName);
 };
 
@@ -158,6 +158,9 @@ export default function ScenekortTab({ gameState }) {
       const notInHand = !allHandCards.some(handCard => handCard.id === card.id);
       const notPlayed = !playedCards.some(p => p.card.id === card.id);
       const isAvailable = isCardAvailableToDraw(card, playerName, new Set(playedCards.map(p => p.card.id)));
+      console.log('notInHand:', notInHand);
+      console.log('notPlayed:', notPlayed);
+      console.log('isAvailable:', isAvailable);
       return notInHand && notPlayed && isAvailable;
     });
 
