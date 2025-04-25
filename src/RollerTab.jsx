@@ -93,27 +93,22 @@ export default function RollerTab({ gameState }) {
     const sceneCards = gameState.sceneCards.cards || [];
     console.log('🎴 All Scene Cards:', sceneCards.map(card => ({
       title: card.title,
-      playerid: card.playerid
+      playerId: card.playerId
     })));
 
     // Group scene cards by player
     const charactersWithCards = players.map(player => {
       console.log(`\n🎭 Processing player: ${player.name}`);
       
-      // Filter cards by exact playerid match (lowercase)
+      // Filter cards by case-insensitive playerId match
       const playerCards = sceneCards.filter(card => {
-        const matches = card.playerid === player.name;
-        console.log(`Checking card:`, {
-          title: card.title,
-          playerid: card.playerid,
-          playerName: player.name,
-          matches
-        });
+        const matches = card.playerId?.toLowerCase() === player.name.toLowerCase();
+        console.log(`Card ${card.title} playerId: ${card.playerId}, player name: ${player.name}, matches: ${matches}`);
         return matches;
       });
 
       console.log(`Found ${playerCards.length} cards for ${player.name}:`, 
-        playerCards.map(c => ({ title: c.title, playerid: c.playerid }))
+        playerCards.map(c => ({ title: c.title, playerId: c.playerId }))
       );
 
       return {

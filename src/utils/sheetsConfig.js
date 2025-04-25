@@ -45,10 +45,6 @@ function validateCard(card, rowIndex, isSceneCard = false) {
   const requiredColumns = isSceneCard ? SCENE_REQUIRED_COLUMNS : DRAMA_REQUIRED_COLUMNS;
   
   requiredColumns.forEach(column => {
-    // For scene cards, playerid is optional
-    if (isSceneCard && column === 'playerid') {
-      return;
-    }
     if (!card[column]) {
       errors.push(`Missing ${column} in row ${rowIndex + 2}`);
     }
@@ -63,6 +59,7 @@ function validateCard(card, rowIndex, isSceneCard = false) {
 
 // Function to fetch cards from a specific sheet
 async function fetchCardsFromSheet(isSceneCards = false) {
+  console.log('🔄 Starting fetchCardsFromSheet...');
   try {
     const gid = isSceneCards ? SCENE_SHEET_GID : DRAMA_SHEET_GID;
     // Using the public CSV export URL with the correct format and gid
@@ -110,13 +107,20 @@ async function fetchCardsFromSheet(isSceneCards = false) {
     const cards = [];
     const errors = [];
 
+    // Create a map of normalized header to original header
+    const headerMap = {};
+    rows[0].forEach(header => {
+      const normalized = header.toLowerCase().replace(/\s+/g, '');
+      headerMap[normalized] = normalized === 'playerid' ? 'playerId' : header.replace(/\s+/g, '');
+    });
+
     rows.slice(1).forEach((row, index) => {
       console.log(`🃏 Processing row ${index + 2}:`, row);
       const card = {};
       rows[0].forEach((header, colIndex) => {
-        // Normalize header name by removing spaces
         const normalizedHeader = header.toLowerCase().replace(/\s+/g, '');
-        card[normalizedHeader] = row[colIndex] || '';
+        const mappedHeader = headerMap[normalizedHeader];
+        card[mappedHeader] = row[colIndex] || '';
       });
 
       // Validate card data
@@ -147,7 +151,7 @@ async function fetchCardsFromSheet(isSceneCards = false) {
     return cards;
 
   } catch (error) {
-    console.error('❌ Error fetching cards:', error);
+    console.error('❌ Error in fetchCardsFromSheet:', error);
     console.error('Stack trace:', error.stack);
     console.error('Error details:', {
       message: error.message,
@@ -160,18 +164,28 @@ async function fetchCardsFromSheet(isSceneCards = false) {
 
 // Function to fetch drama cards
 export async function fetchDramaCards() {
-  console.log('🎭 Fetching drama cards...');
-  const cards = await fetchCardsFromSheet(false);
-  console.log(`🎭 Found ${cards.length} drama cards`);
-  return cards;
+  console.log('🎭 Starting fetchDramaCards...');
+  try {
+    const cards = await fetchCardsFromSheet(false);
+    console.log(`🎭 fetchDramaCards completed with ${cards.length} cards`);
+    return cards;
+  } catch (error) {
+    console.error('❌ Error in fetchDramaCards:', error);
+    throw error;
+  }
 }
 
 // Function to fetch scene cards
 export async function fetchSceneCards() {
-  console.log('🎬 Fetching scene cards...');
-  const cards = await fetchCardsFromSheet(true);
-  console.log(`🎬 Found ${cards.length} scene cards`);
-  return cards;
+  console.log('🎬 Starting fetchSceneCards...');
+  try {
+    const cards = await fetchCardsFromSheet(true);
+    console.log(`🎬 fetchSceneCards completed with ${cards.length} cards`);
+    return cards;
+  } catch (error) {
+    console.error('❌ Error in fetchSceneCards:', error);
+    throw error;
+  }
 }
 
 // Test function to check sheet accessibility

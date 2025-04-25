@@ -12,26 +12,39 @@ import { fetchSceneCards } from './utils/sheetsConfig';
 const HAND_SIZE = 3;
 
 // Helper function to check if a card belongs to a player (case-insensitive)
+const getCardPlayerId = (card) => {
+  // Handle both playerId and playerid cases
+  const id = card.playerId || '';
+  return id.trim();
+};
+
 const isCardOwnedByPlayer = (card, playerName) => {
-  return card.playerId && card.playerId.toLowerCase() === playerName.toLowerCase();
+  const id = getCardPlayerId(card);
+  return id && id.toLowerCase() === playerName.toLowerCase();
 };
 
 // Helper function to check if a card is available to draw
 const isCardAvailableToDraw = (card, playerName, playedCards) => {
   // Card is available if:
-  // 1. It's unowned (playerId is empty or null) OR
-  // 2. It belongs to the current player
-  // AND
-  // 3. It hasn't been played yet
-  return (!card.playerId || isCardOwnedByPlayer(card, playerName)) && 
-         !playedCards.has(card.id);
+  // 1. It hasn't been played yet AND
+  // 2. It's either unowned OR owned by the current player
+  const cardPlayerId = getCardPlayerId(card)?.toLowerCase();
+  const currentPlayerName = playerName.toLowerCase();
+  
+  console.log(`🎴 Checking availability for card ${card.id} (${card.title}):`, {
+    cardPlayerId,
+    currentPlayerName,
+    isPlayed: playedCards.has(card.id),
+    isOwnedByPlayer: cardPlayerId === currentPlayerName,
+    hasNoOwner: !cardPlayerId
+  });
+  
+  return !playedCards.has(card.id) && (!cardPlayerId || cardPlayerId !== currentPlayerName);
 };
 
 // Helper function to normalize player ID case
 const normalizePlayerId = (playerId) => {
-  // Get the original case from localStorage if it exists
-  const storedName = localStorage.getItem('name');
-  return storedName || playerId.toLowerCase();
+  return playerId.toLowerCase();
 };
 
 // Scene card type icons component
@@ -57,7 +70,7 @@ const TypeIcon = ({ type }) => {
       return (
         <div className="flex items-center text-blue-400" title="Pustescene">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 110-12 6 6 0 010 12zm0-9a1 1 0 011 1v3a1 1 0 11-2 0V8a1 1 0 011-1z" clipRule="evenodd" />
+            <path fillRule="evenodd" d="M10 2a8 8 0 100 16zm0 14a6 6 0 110-12 6 6 0 010 12zm0-9a1 1 0 011 1v3a1 1 0 11-2 0V8a1 1 0 011-1z" clipRule="evenodd" />
           </svg>
         </div>
       );
@@ -103,6 +116,14 @@ const TypeIcon = ({ type }) => {
         </div>
       );
   }
+};
+
+// Helper function to check if a card is playable by a player
+const isCardPlayable = (card, playerName, playedCards, playerHand) => {
+  // Card is playable if:
+  // 1. It's in the player's hand AND
+  // 2. It hasn't been played yet
+  return playerHand.includes(card.id) && !playedCards.has(card.id);
 };
 
 export default function ScenekortTab({ gameState }) {
@@ -176,15 +197,21 @@ export default function ScenekortTab({ gameState }) {
 
   // Add effect to monitor players and their characters
   useEffect(() => {
+    if (!gameId) return;
+
     const playersRef = ref(db, `games/${gameId}/players`);
     const unsubscribe = onValue(playersRef, (snapshot) => {
       const players = snapshot.val() || {};
       const characters = {};
-      Object.entries(players).forEach(([player, data]) => {
+      console.log('👥 Processing players:', players);
+      Object.entries(players).forEach(([playerId, data]) => {
+        console.log(`👤 Processing player ${playerId}:`, data);
         if (data.character) {
-          characters[player] = data.character;
+          characters[playerId.toLowerCase()] = data.character;
+          console.log(`✅ Added character for ${playerId}:`, data.character);
         }
       });
+      console.log('🎭 Final characters mapping:', characters);
       setPlayerCharacters(characters);
       setPlayerCount(Object.keys(players).length);
     });
@@ -233,8 +260,17 @@ export default function ScenekortTab({ gameState }) {
           throw new Error('No scene cards found in the sheet');
         }
         
+        // Map the cards to set playerId properly
+        const initializedCards = sheetCards.map(card => {
+          // Only set playerId if it exists and is not empty, otherwise use empty string
+          return {
+            ...card,
+            playerId: card.playerId?.trim() || ''
+          };
+        });
+        
         await set(ref(db, `games/${gameId}/sceneCards`), {
-          cards: sheetCards,
+          cards: initializedCards,
           hands: {},
           played: [] // Initialize as empty array
         });
@@ -300,7 +336,7 @@ export default function ScenekortTab({ gameState }) {
                 
                 if (!notInHand) console.log(`❌ Card ${card.id} is in a hand`);
                 if (!notPlayed) console.log(`❌ Card ${card.id} has been played`);
-                if (!isAvailable) console.log(`❌ Card ${card.id} is not available to draw`);
+                if (!isAvailable) console.log(`❌ Card ${card.id} is not available to draw (${card.title}) - owned by ${card.playerId || 'none'}`);
                 
                 return notInHand && notPlayed && isAvailable;
               });
@@ -319,14 +355,6 @@ export default function ScenekortTab({ gameState }) {
               // Update the player's hand
               data.hands = data.hands || {};
               data.hands[playerName] = [...(data.hands[playerName] || []), newCard];
-
-              // Mark the card as owned by this player if it's not a utility card
-              if (!['Breathing', 'Development', 'Exploration', 'Plan', 'Change'].includes(newCard.type)) {
-                const normalizedPlayerId = normalizePlayerId(playerName);
-                data.cards = data.cards.map(card => 
-                  card.id === newCard.id ? { ...card, playerId: normalizedPlayerId } : card
-                );
-              }
 
               drawn = true;
               return data;
@@ -421,7 +449,7 @@ export default function ScenekortTab({ gameState }) {
           
           if (!notInHand) console.log(`❌ Card ${card.id} is in a hand`);
           if (!notPlayed) console.log(`❌ Card ${card.id} has been played`);
-          if (!isAvailable) console.log(`❌ Card ${card.id} is not available to draw`);
+          if (!isAvailable) console.log(`❌ Card ${card.id} is not available to draw (${card.title}) - owned by ${card.playerId || 'none'}`);
           
           return notInHand && notPlayed && isAvailable;
         });
@@ -446,17 +474,6 @@ export default function ScenekortTab({ gameState }) {
         // Update hand
         game.sceneCards.hands[playerName] = [...currentHand, ...newCards];
         
-        // Update ownership for non-utility cards
-        newCards.forEach(card => {
-          if (!['Breathing', 'Development', 'Exploration', 'Plan', 'Change'].includes(card.type)) {
-            const normalizedPlayerId = normalizePlayerId(playerName);
-            game.sceneCards.cards = game.sceneCards.cards.map(c => 
-              c.id === card.id ? { ...c, playerId: normalizedPlayerId } : c
-            );
-          }
-        });
-
-        console.log('✨ Updated hand:', game.sceneCards.hands[playerName].map(c => c.id));
         return game;
       });
     } catch (err) {
@@ -484,10 +501,20 @@ export default function ScenekortTab({ gameState }) {
           data.played = [];
         }
 
-        // Add to played cards history
+        // Find the original card to preserve ownership
+        const originalCard = data.cards.find(c => c.id === cardId);
+        
+        // Add to played cards history, preserving the original playerId
         data.played.push({
           playerId: playerName,
-          card: playedCard,
+          card: {
+            id: playedCard.id,
+            title: playedCard.title,
+            text: playedCard.text,
+            type: playedCard.type,
+            image: playedCard.image,
+            playerId: originalCard?.playerId || playedCard.playerId // Preserve original ownership
+          },
           timestamp: Date.now()
         });
 
@@ -523,15 +550,10 @@ export default function ScenekortTab({ gameState }) {
       // Reset everything to initial state
       const resetData = {
         cards: sheetCards.map(card => {
-          // If the card has a playerid that matches current player (case-insensitive),
-          // use the normalized version, otherwise clear it
-          const normalizedPlayerId = card.playerid?.toLowerCase() === playerName.toLowerCase() 
-            ? normalizePlayerId(playerName)
-            : '';
-          
+          const existingId = getCardPlayerId(card);
           return {
             ...card,
-            playerId: normalizedPlayerId // Note: we use playerId (capital I) in our app
+            playerId: existingId?.trim() || '' // Use the normalized playerId property
           };
         }),
         hands: {}, // Clear all hands
@@ -575,8 +597,17 @@ export default function ScenekortTab({ gameState }) {
             throw new Error('No scene cards found in the sheet');
           }
           
+          // Map the cards to set playerId properly
+          const initializedCards = sheetCards.map(card => {
+            // Only set playerId if it exists and is not empty, otherwise use empty string
+            return {
+              ...card,
+              playerId: card.playerId?.trim() || ''
+            };
+          });
+          
           await set(sceneCardsRef, {
-            cards: sheetCards,
+            cards: initializedCards,
             hands: {},
             played: [] // Initialize as empty array
           });
@@ -713,11 +744,28 @@ export default function ScenekortTab({ gameState }) {
               </div>
             )}
             <div className="flex flex-col space-y-2">
-              {card.playerId && playerCharacters[card.playerId] && (
-                <div className="text-sm text-gray-400 text-right italic">
-                  Eies av: {playerCharacters[card.playerId]}
-                </div>
-              )}
+              {card.playerId && (() => {
+                const ownershipDetails = {
+                  cardId: card.id,
+                  cardTitle: card.title,
+                 
+                  cardPlayerIdLower: card.playerId.toLowerCase(),
+                  playerCharacters,
+                  lookupKey: card.playerId.toLowerCase(),
+                  characterFound: playerCharacters[card.playerId.toLowerCase()],
+                  allKeys: Object.keys(playerCharacters),
+                  allKeysLower: Object.keys(playerCharacters).map(k => k.toLowerCase()),
+                  exactMatch: playerCharacters[card.playerId],
+                  keyExists: card.playerId.toLowerCase() in playerCharacters,
+                };
+                console.log('🎴 Card ownership check:', ownershipDetails);
+                const characterName = playerCharacters[card.playerId.toLowerCase()];
+                return characterName && (
+                  <div className="text-sm text-gray-400 text-right italic">
+                    Eies av: {characterName}
+                  </div>
+                );
+              })()}
               <div className="flex justify-end">
                 <button 
                   onClick={() => playCard(card.id)}
