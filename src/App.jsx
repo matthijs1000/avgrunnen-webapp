@@ -8,6 +8,7 @@ import RulesTab from "./RulesTab";
 import RegissorTab from "./RegissorTab";
 import ScenekortTab from "./ScenekortTab";
 import RollerTab from "./RollerTab";
+import AdminTab from './AdminTab';
 import { db } from './firebaseConfig';
 import { ref, get, set, onValue, runTransaction } from 'firebase/database';
 import { fetchSceneCards, fetchDramaCards, testSheetAccess } from './utils/sheetsConfig';
@@ -62,10 +63,15 @@ export default function AvgrunnenApp() {
         
         // Initialize scene cards
         console.log('🎬 Fetching scene cards...');
-        const sceneCards = await fetchSceneCards();
-        console.log('🎬 Fetched scene cards:', sceneCards);
-        if (sceneCards.length === 0) throw new Error('No scene cards found');
-        console.log('🎬 Fetched scene cards:', sceneCards.length);
+        const allSceneCards = await fetchSceneCards();
+        console.log('🎬 Fetched scene cards:', allSceneCards);
+        if (allSceneCards.length === 0) throw new Error('No scene cards found');
+        
+        // Filter for Act 1 cards
+        const actOneCards = filterCardsByAct(allSceneCards, 1);
+        console.log('🎬 Act 1 scene cards:', actOneCards.length);
+        
+        if (actOneCards.length === 0) throw new Error('No Act 1 cards found');
         
         // Set up initial game state
         const initialState = {
@@ -75,8 +81,11 @@ export default function AvgrunnenApp() {
             played: {}
           },
           sceneCards: {
-            cards: sceneCards,
-            hands: {}
+            cards: allSceneCards, // Store all cards
+            activeCards: actOneCards.map(card => card.id), // Store active cards for current act
+            hands: {},
+            played: [],
+            currentAct: 1 // Start with Act 1
           },
           players: {}
         };
@@ -85,25 +94,32 @@ export default function AvgrunnenApp() {
         await set(gameRef, initialState);
         console.log('✅ Game initialized successfully');
       } else {
-        // If game exists but has old structure, migrate it
+        // If game exists but needs act structure
         const game = gameSnap.val();
-        if (game.cards && !game.dramaCards) {
-          console.log('�� Migrating old game structure to new format...');
-          const updatedGame = {
-            ...game,
-            dramaCards: {
-              cards: game.cards,
-              hands: game.hands || {},
-              played: game.played || {}
+        if (game.sceneCards && !game.sceneCards.activeCards) {
+          console.log('🔄 Adding act structure to existing game...');
+          await runTransaction(ref(db, `games/${gameId}/sceneCards`), (data) => {
+            if (!data) return data;
+            
+            // Filter for current act (default to 1 if not set)
+            const currentAct = data.currentAct || 1;
+            console.log('🎬 Current act:', currentAct);
+            console.log('📊 Total cards:', data.cards.length);
+            
+            // Filter cards for current act
+            const activeCards = filterCardsByAct(data.cards, currentAct);
+            console.log(`✨ Found ${activeCards.length} active cards for act ${currentAct}`);
+            
+            if (activeCards.length === 0) {
+              console.warn('⚠️ No active cards found for current act!');
             }
-          };
-          // Remove old fields
-          delete updatedGame.cards;
-          delete updatedGame.hands;
-          delete updatedGame.played;
-          
-          await set(gameRef, updatedGame);
-          console.log('✅ Game structure migration complete');
+            
+            return {
+              ...data,
+              activeCards: activeCards.map(card => card.id),
+              currentAct
+            };
+          });
         }
       }
 
@@ -258,6 +274,21 @@ export default function AvgrunnenApp() {
     }
   };
 
+  // Add helper function to filter cards by act
+  const filterCardsByAct = (cards, actNumber) => {
+    return cards.filter(card => {
+      // Remove space in property name
+      const actKey = `act${actNumber}`;
+      // Log the actual card data to debug
+      console.log(`🎴 Card ${card.id} data:`, card);
+      console.log(`🎭 Card ${card.id} in act ${actNumber}:`, card[actKey]);
+      // Convert the act value to boolean, handling both string "TRUE" and boolean true
+      const isInAct = String(card[actKey] || '').toUpperCase() === "TRUE" || card[actKey] === true;
+      console.log(`✨ Card ${card.id} active:`, isInAct);
+      return isInAct;
+    });
+  };
+
   if (error) {
     return (
       <div className="min-h-screen bg-[#e8f0ea] text-gray-900 font-sans flex items-center justify-center">
@@ -322,12 +353,17 @@ export default function AvgrunnenApp() {
             <RegissorTab />
           </TabsContent>
 
+          <TabsContent value="admin" className="mt-4">
+            <AdminTab />
+          </TabsContent>
+
           <TabsList className="fixed bottom-0 left-0 right-0 flex justify-around bg-white border-t shadow-md">
             <TabsTrigger value="dramakort">Dramakort</TabsTrigger>
             <TabsTrigger value="scenekort">Scenekort</TabsTrigger>
             <TabsTrigger value="regler">Regler</TabsTrigger>
             <TabsTrigger value="roller">Roller</TabsTrigger>
             <TabsTrigger value="regissor">Regissør</TabsTrigger>
+            <TabsTrigger value="admin">Admin</TabsTrigger>
           </TabsList>
         </Tabs>
       )}

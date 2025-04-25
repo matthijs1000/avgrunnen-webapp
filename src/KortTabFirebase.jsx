@@ -14,7 +14,7 @@ import {
 } from 'firebase/database';
 import { fetchDramaCards } from './utils/sheetsConfig';
 
-const HAND_SIZE = 3;
+const HAND_SIZE = 5;
 const NOTIFICATION_LIMIT = 10; // Increased limit since we'll have more space
 
 export default function KortTabFirebase({ gameState }) {

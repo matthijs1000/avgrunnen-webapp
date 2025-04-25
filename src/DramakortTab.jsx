@@ -3,7 +3,7 @@ import { db } from './firebaseConfig';
 import { ref, runTransaction, get, set } from 'firebase/database';
 import { fetchDramaCards } from './utils/sheetsConfig';
 
-const HAND_SIZE = 3;
+const HAND_SIZE = 5;
 
 export default function DramakortTab({ gameState }) {
   const [hand, setHand] = useState([]);
@@ -113,7 +113,7 @@ export default function DramakortTab({ gameState }) {
 
         // Find available cards
         const availableCards = allCards.filter(card => !playedCards.has(card.id));
-        console.log('📊 Available cards:', availableCards.length);
+        console.log('�� Available cards:', availableCards.length);
 
         if (availableCards.length === 0) {
           console.warn('🚫 No cards available');

@@ -24,11 +24,17 @@ const isCardOwnedByPlayer = (card, playerName) => {
 };
 
 // Helper function to check if a card is available to draw
-const isCardAvailableToDraw = (card, playerName, playedCards, allHandCards) => {
+const isCardAvailableToDraw = (card, playerName, playedCards, allHandCards, activeCardIds) => {
+  // First check if the card is active in the current act
+  if (activeCardIds && !activeCardIds.has(card.id)) {
+    console.log(`🎴 Card ${card.id} is not active in current act`);
+    return false;
+  }
+
   // Card is available if:
   // 1. It hasn't been played yet AND
-  // 2. It's either unowned OR owned by the current player AND
-  // 3. It's not in anyone's hand
+  // 2. It's not in anyone's hand AND
+  // 3. It's either unowned OR owned by the current player
   const cardPlayerId = getCardPlayerId(card)?.toLowerCase();
   const currentPlayerName = playerName.toLowerCase();
   const notInHand = !allHandCards.some(handCard => handCard.id === card.id);
@@ -39,10 +45,13 @@ const isCardAvailableToDraw = (card, playerName, playedCards, allHandCards) => {
     isPlayed: playedCards.has(card.id),
     isOwnedByPlayer: cardPlayerId === currentPlayerName,
     hasNoOwner: !cardPlayerId,
-    notInHand
+    notInHand,
+    isActive: !activeCardIds || activeCardIds.has(card.id)
   });
   
-  const isAvailable = !playedCards.has(card.id) && (!cardPlayerId || cardPlayerId !== currentPlayerName) && notInHand;
+  const isAvailable = !playedCards.has(card.id) && 
+                     notInHand && 
+                     (!cardPlayerId || cardPlayerId === currentPlayerName);
   console.log('🎴 Card is available to draw:', isAvailable);
   return isAvailable;
 };
@@ -136,7 +145,6 @@ export default function ScenekortTab({ gameState }) {
   const [hand, setHand] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [deckStatus, setDeckStatus] = useState({
     total: 0,
     available: 0,
@@ -161,6 +169,7 @@ export default function ScenekortTab({ gameState }) {
     const otherHandsCards = Object.entries(data.hands || {})
       .filter(([id]) => id.toLowerCase() !== playerName.toLowerCase())
       .flatMap(([, cards]) => cards);
+    const activeCardIds = new Set(data.activeCards || []);
     
     console.log('🎭 Deck Status Update:');
     console.log('📊 Total cards:', allCards.length);
@@ -168,14 +177,15 @@ export default function ScenekortTab({ gameState }) {
     console.log('🎭 Played cards:', playedCards.map(p => p.card.id));
     console.log('👥 Cards in other hands:', otherHandsCards.map(c => c.id));
     
-    // Count cards in deck (not in any hand AND not played)
+    // Count cards in deck (not in any hand AND not played AND active in current act)
     const cardsInDeck = allCards.filter(card => {
       const notInHand = !allHandCards.some(handCard => handCard.id === card.id);
       const notPlayed = !playedCards.some(p => p.card.id === card.id);
-      return notInHand && notPlayed;
+      const isActive = activeCardIds.has(card.id);
+      return notInHand && notPlayed && isActive;
     });
 
-    // Count available cards (not in any hand AND not played AND either unowned or owned by current player)
+    // Count available cards (not in any hand AND not played AND active AND either unowned or owned by current player)
     const availableCards = cardsInDeck.filter(card => {
       const cardPlayerId = getCardPlayerId(card)?.toLowerCase();
       const currentPlayerName = playerName.toLowerCase();
@@ -462,15 +472,19 @@ export default function ScenekortTab({ gameState }) {
         const playedCards = game.sceneCards.played || [];
         const playedCardIds = new Set(playedCards.map(p => p.card.id));
 
+        // Get active cards for current act
+        const activeCardIds = new Set(game.sceneCards.activeCards || []);
+
         console.log('🔍 Card tracking:');
         console.log('✋ Cards in hands:', [...handCardIds]);
         console.log('🎭 Played cards:', [...playedCardIds]);
+        console.log('✨ Active cards:', [...activeCardIds]);
 
         // Find available cards (not in any hand AND not played)
         const availableCards = allCards.filter(card => {
           const notInHand = !handCardIds.has(card.id);
           const notPlayed = !playedCardIds.has(card.id);
-          const isAvailable = isCardAvailableToDraw(card, playerName, playedCardIds, allHandCards);
+          const isAvailable = isCardAvailableToDraw(card, playerName, playedCardIds, allHandCards, activeCardIds);
           
           if (!notInHand) console.log(`❌ Card ${card.id} is in a hand`);
           if (!notPlayed) console.log(`❌ Card ${card.id} has been played`);
@@ -560,44 +574,22 @@ export default function ScenekortTab({ gameState }) {
     }
   };
 
-  // Reset scene cards
-  const resetSceneCards = async () => {
-    setIsLoading(true);
-    try {
-      console.log('🔄 Starting scene cards reset...');
-      const sheetCards = await fetchSceneCards();
-      console.log('📥 Fetched cards from sheet:', sheetCards);
-      
-      if (sheetCards.length === 0) {
-        throw new Error('No scene cards found in the sheet');
-      }
-
-      // Reset everything to initial state
-      const resetData = {
-        cards: sheetCards.map(card => {
-          const existingId = getCardPlayerId(card);
-          return {
-            ...card,
-            playerId: existingId?.trim() || '' // Use the normalized playerId property
-          };
-        }),
-        hands: {}, // Clear all hands
-        played: [] // Initialize as empty array
-      };
-      
-      console.log('💾 Saving reset data:', resetData);
-      await set(ref(db, `games/${gameId}/sceneCards`), resetData);
-      console.log('✅ Reset complete');
-      
-      await loadSceneCards();
-      setShowResetConfirm(false);
-    } catch (err) {
-      console.error('Failed to reset scene cards:', err);
-      setError('Kunne ikke tilbakestille scenekortene. Prøv igjen.');
-    } finally {
-      setIsLoading(false);
+  // Add automatic act progression when all cards are played
+  useEffect(() => {
+    if (!gameState?.sceneCards) return;
+    
+    const { cards, played, currentAct } = gameState.sceneCards;
+    
+    // Check if all cards have been played
+    if (cards && played && played.length === cards.length && currentAct < 3) {
+      // Automatically progress to next act
+      runTransaction(ref(db, `games/${gameId}/sceneCards`), (data) => {
+        if (!data) return data;
+        data.currentAct = (data.currentAct || 1) + 1;
+        return data;
+      });
     }
-  };
+  }, [gameState?.sceneCards?.played?.length, gameId]);
 
   // Initial setup
   useEffect(() => {
@@ -701,49 +693,8 @@ export default function ScenekortTab({ gameState }) {
     <div className="p-4">
       <div className="mb-4">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold">Dine Scenekort ({hand.length}/{HAND_SIZE})</h2>
-          <button
-            onClick={() => {
-              localStorage.clear();
-              window.location.reload();
-            }}
-            className="text-sm text-red-600 hover:text-red-700"
-          >
-            Logg ut
-          </button>
-        </div>
-        
-        {/* Deck Status */}
-        <div className="mb-4">
-          <div className="grid grid-cols-2 gap-2 mb-2">
-            <div className="text-sm text-gray-600">
-              Kort spilt: {deckStatus.played}
-            </div>
-            <div className="text-sm text-gray-600">
-              Kort i andre spilleres hender: {deckStatus.inOtherHands}
-            </div>
-            <div className={`text-sm ${deckStatus.inDeck === 0 ? 'text-red-600 font-bold' : 'text-gray-600'}`}>
-              {deckStatus.inDeck === 0 ? (
-                <div className="flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                  Ingen flere kort i bunken. Trykk på "Tilbakestill scenekort" for å starte på nytt.
-                </div>
-              ) : deckStatus.inDeck <= playerCount ? (
-                <div className="flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                  Kun {deckStatus.inDeck} kort igjen i bunken!
-                </div>
-              ) : (
-                `Kort i bunken: ${deckStatus.inDeck}`
-              )}
-            </div>
-            <div className="text-sm text-gray-600">
-              Antall spillere: {playerCount}
-            </div>
+          <div>
+            <h2 className="text-xl font-bold">Dine Scenekort ({hand.length}/{HAND_SIZE})</h2>
           </div>
         </div>
       </div>
@@ -781,7 +732,6 @@ export default function ScenekortTab({ gameState }) {
                 const ownershipDetails = {
                   cardId: card.id,
                   cardTitle: card.title,
-                 
                   cardPlayerIdLower: card.playerId.toLowerCase(),
                   playerCharacters,
                   lookupKey: card.playerId.toLowerCase(),
@@ -813,39 +763,25 @@ export default function ScenekortTab({ gameState }) {
         ))}
       </ul>
 
-      <div className="mt-8">
-        <button 
-          onClick={() => setShowResetConfirm(true)}
-          className="w-full py-2 bg-red-600 text-white rounded hover:bg-red-700"
-        >
-          Tilbakestill scenekort
-        </button>
-      </div>
-
-      {showResetConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg p-6 max-w-sm w-full">
-            <h3 className="text-lg font-bold mb-4">Bekreft tilbakestilling</h3>
-            <p className="mb-6 text-gray-600">
-              Er du sikker på at du vil tilbakestille scenekortene? Dette vil laste inn kortene på nytt fra Google Sheets.
-            </p>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setShowResetConfirm(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-              >
-                Avbryt
-              </button>
-              <button
-                onClick={resetSceneCards}
-                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-              >
-                Tilbakestill
-              </button>
+      {/* Deck Status Box */}
+      <div className="fixed bottom-16 left-0 right-0 mx-4">
+        <div className="bg-gray-800 rounded-lg p-4 shadow-lg">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+            <div className="text-gray-300">
+              <span className="font-semibold">Akt:</span> {gameState?.sceneCards?.currentAct || 1}
+            </div>
+            <div className={`text-gray-300 ${deckStatus.inDeck === 0 ? 'text-red-500 font-bold' : ''}`}>
+              <span className="font-semibold">Kort i bunken:</span> {deckStatus.inDeck}
+            </div>
+            <div className="text-gray-300">
+              <span className="font-semibold">Spilte kort:</span> {deckStatus.played}
+            </div>
+            <div className="text-gray-300">
+              <span className="font-semibold">Kort i spillerhender:</span> {deckStatus.inOtherHands}
             </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 } 
