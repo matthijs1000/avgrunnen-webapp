@@ -24,22 +24,27 @@ const isCardOwnedByPlayer = (card, playerName) => {
 };
 
 // Helper function to check if a card is available to draw
-const isCardAvailableToDraw = (card, playerName, playedCards) => {
+const isCardAvailableToDraw = (card, playerName, playedCards, allHandCards) => {
   // Card is available if:
   // 1. It hasn't been played yet AND
-  // 2. It's either unowned OR owned by the current player
+  // 2. It's either unowned OR owned by the current player AND
+  // 3. It's not in anyone's hand
   const cardPlayerId = getCardPlayerId(card)?.toLowerCase();
   const currentPlayerName = playerName.toLowerCase();
+  const notInHand = !allHandCards.some(handCard => handCard.id === card.id);
   
   console.log(`🎴 Checking availability for card ${card.id} (${card.title}):`, {
     cardPlayerId,
     currentPlayerName,
     isPlayed: playedCards.has(card.id),
     isOwnedByPlayer: cardPlayerId === currentPlayerName,
-    hasNoOwner: !cardPlayerId
+    hasNoOwner: !cardPlayerId,
+    notInHand
   });
-  console.log('🎴 Card is available to draw:', !playedCards.has(card.id) && (!cardPlayerId || cardPlayerId !== currentPlayerName));
-  return !playedCards.has(card.id) && (!cardPlayerId || cardPlayerId !== currentPlayerName);
+  
+  const isAvailable = !playedCards.has(card.id) && (!cardPlayerId || cardPlayerId !== currentPlayerName) && notInHand;
+  console.log('🎴 Card is available to draw:', isAvailable);
+  return isAvailable;
 };
 
 // Helper function to normalize player ID case
@@ -132,7 +137,13 @@ export default function ScenekortTab({ gameState }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [deckStatus, setDeckStatus] = useState({ total: 0, available: 0 });
+  const [deckStatus, setDeckStatus] = useState({
+    total: 0,
+    available: 0,
+    inDeck: 0,
+    played: 0,
+    inOtherHands: 0
+  });
   const [playerCount, setPlayerCount] = useState(0);
   const [playerCharacters, setPlayerCharacters] = useState({});
   const [actioningCards, setActioningCards] = useState(new Set());
@@ -147,28 +158,39 @@ export default function ScenekortTab({ gameState }) {
     const allCards = data.cards || [];
     const allHandCards = Object.values(data.hands || {}).flat();
     const playedCards = data.played || [];
+    const otherHandsCards = Object.entries(data.hands || {})
+      .filter(([id]) => id.toLowerCase() !== playerName.toLowerCase())
+      .flatMap(([, cards]) => cards);
     
     console.log('🎭 Deck Status Update:');
     console.log('📊 Total cards:', allCards.length);
     console.log('✋ Cards in hands:', allHandCards.map(c => c.id));
     console.log('🎭 Played cards:', playedCards.map(p => p.card.id));
+    console.log('👥 Cards in other hands:', otherHandsCards.map(c => c.id));
     
-    // Count available cards (not in any hand AND not played)
-    const availableCards = allCards.filter(card => {
+    // Count cards in deck (not in any hand AND not played)
+    const cardsInDeck = allCards.filter(card => {
       const notInHand = !allHandCards.some(handCard => handCard.id === card.id);
       const notPlayed = !playedCards.some(p => p.card.id === card.id);
-      const isAvailable = isCardAvailableToDraw(card, playerName, new Set(playedCards.map(p => p.card.id)));
-      console.log('notInHand:', notInHand);
-      console.log('notPlayed:', notPlayed);
-      console.log('isAvailable:', isAvailable);
-      return notInHand && notPlayed && isAvailable;
+      return notInHand && notPlayed;
     });
 
+    // Count available cards (not in any hand AND not played AND either unowned or owned by current player)
+    const availableCards = cardsInDeck.filter(card => {
+      const cardPlayerId = getCardPlayerId(card)?.toLowerCase();
+      const currentPlayerName = playerName.toLowerCase();
+      return !cardPlayerId || cardPlayerId === currentPlayerName;
+    });
+
+    console.log('🎴 Cards in deck:', cardsInDeck.map(c => c.id));
     console.log('✨ Available cards:', availableCards.map(c => c.id));
 
     setDeckStatus({
       total: allCards.length,
-      available: availableCards.length
+      available: availableCards.length,
+      inDeck: cardsInDeck.length,
+      played: playedCards.length,
+      inOtherHands: otherHandsCards.length
     });
   };
 
@@ -335,7 +357,7 @@ export default function ScenekortTab({ gameState }) {
               const availableCards = (data.cards || []).filter(card => {
                 const notInHand = !allHandCardIds.has(card.id);
                 const notPlayed = !allPlayedCardIds.has(card.id);
-                const isAvailable = isCardAvailableToDraw(card, playerName, allPlayedCardIds);
+                const isAvailable = isCardAvailableToDraw(card, playerName, allPlayedCardIds, allHandCards);
                 
                 if (!notInHand) console.log(`❌ Card ${card.id} is in a hand`);
                 if (!notPlayed) console.log(`❌ Card ${card.id} has been played`);
@@ -448,7 +470,7 @@ export default function ScenekortTab({ gameState }) {
         const availableCards = allCards.filter(card => {
           const notInHand = !handCardIds.has(card.id);
           const notPlayed = !playedCardIds.has(card.id);
-          const isAvailable = isCardAvailableToDraw(card, playerName, playedCardIds);
+          const isAvailable = isCardAvailableToDraw(card, playerName, playedCardIds, allHandCards);
           
           if (!notInHand) console.log(`❌ Card ${card.id} is in a hand`);
           if (!notPlayed) console.log(`❌ Card ${card.id} has been played`);
@@ -693,27 +715,35 @@ export default function ScenekortTab({ gameState }) {
         
         {/* Deck Status */}
         <div className="mb-4">
-          <div className={`text-sm ${deckStatus.available <= playerCount ? 'text-red-600 font-bold' : 'text-gray-600'}`}>
-            {deckStatus.available === 0 ? (
-              <div className="flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-                Ingen flere kort tilgjengelig. Trykk på "Tilbakestill scenekort" for å starte på nytt.
-              </div>
-            ) : deckStatus.available <= playerCount ? (
-              <div className="flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-                Kun {deckStatus.available} kort igjen!
-              </div>
-            ) : (
-              `Tilgjengelige kort: ${deckStatus.available}`
-            )}
-          </div>
-          <div className="text-sm text-gray-600">
-            Antall spillere: {playerCount}
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <div className="text-sm text-gray-600">
+              Kort spilt: {deckStatus.played}
+            </div>
+            <div className="text-sm text-gray-600">
+              Kort i andre spilleres hender: {deckStatus.inOtherHands}
+            </div>
+            <div className={`text-sm ${deckStatus.inDeck === 0 ? 'text-red-600 font-bold' : 'text-gray-600'}`}>
+              {deckStatus.inDeck === 0 ? (
+                <div className="flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  Ingen flere kort i bunken. Trykk på "Tilbakestill scenekort" for å starte på nytt.
+                </div>
+              ) : deckStatus.inDeck <= playerCount ? (
+                <div className="flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  Kun {deckStatus.inDeck} kort igjen i bunken!
+                </div>
+              ) : (
+                `Kort i bunken: ${deckStatus.inDeck}`
+              )}
+            </div>
+            <div className="text-sm text-gray-600">
+              Antall spillere: {playerCount}
+            </div>
           </div>
         </div>
       </div>
