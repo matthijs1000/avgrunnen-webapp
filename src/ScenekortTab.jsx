@@ -8,6 +8,7 @@ import {
   onValue,
 } from 'firebase/database';
 import { fetchSceneCards } from './utils/sheetsConfig';
+import { Notification } from './components/ui/notification';
 
 const HAND_SIZE = 3;
 
@@ -155,6 +156,7 @@ export default function ScenekortTab({ gameState }) {
   const [playerCount, setPlayerCount] = useState(0);
   const [playerCharacters, setPlayerCharacters] = useState({});
   const [actioningCards, setActioningCards] = useState(new Set());
+  const [notification, setNotification] = useState(null);
 
   const playerName = localStorage.getItem('name');
   const gameId = localStorage.getItem('gameId');
@@ -557,6 +559,17 @@ export default function ScenekortTab({ gameState }) {
           timestamp: Date.now()
         });
 
+        // Add notification about played card
+        const timestamp = Date.now();
+        const characterName = playerCharacters[playerName.toLowerCase()] || playerName;
+        data.notifications = data.notifications || {};
+        data.notifications[timestamp] = {
+          type: 'scene_card_played',
+          timestamp,
+          text: `${characterName} spilte scenekortet "${playedCard.title}"`,
+          cardType: playedCard.type
+        };
+
         return data;
       });
 
@@ -578,18 +591,94 @@ export default function ScenekortTab({ gameState }) {
   useEffect(() => {
     if (!gameState?.sceneCards) return;
     
-    const { cards, played, currentAct } = gameState.sceneCards;
+    const { cards, played, currentAct, activeCards } = gameState.sceneCards;
     
-    // Check if all cards have been played
-    if (cards && played && played.length === cards.length && currentAct < 3) {
+    // Skip if we don't have the necessary data
+    if (!cards || !played || !activeCards) return;
+    
+    // Get the IDs of cards that have been played and are active in current act
+    const playedActiveCardIds = played
+      .map(p => p.card.id)
+      .filter(id => activeCards.includes(id));
+    
+    // Check if all active cards for this act have been played
+    if (playedActiveCardIds.length === activeCards.length && currentAct < 3) {
+      console.log('🎬 All active cards for current act have been played, progressing to next act');
+      console.log('📊 Active cards:', activeCards.length);
+      console.log('🎭 Played active cards:', playedActiveCardIds.length);
+      
       // Automatically progress to next act
-      runTransaction(ref(db, `games/${gameId}/sceneCards`), (data) => {
-        if (!data) return data;
-        data.currentAct = (data.currentAct || 1) + 1;
-        return data;
+      runTransaction(ref(db, `games/${gameId}`), (game) => {
+        if (!game) return game;
+        
+        const nextAct = (game.sceneCards.currentAct || 1) + 1;
+        console.log(`🎬 Progressing to Act ${nextAct}`);
+        
+        // Filter cards for the new act
+        const nextActCards = game.sceneCards.cards.filter(card => {
+          const actKey = `act${nextAct}`;
+          return String(card[actKey] || '').toUpperCase() === "TRUE" || card[actKey] === true;
+        });
+        
+        // Update scene cards state
+        game.sceneCards = {
+          ...game.sceneCards,
+          currentAct: nextAct,
+          activeCards: nextActCards.map(card => card.id),
+          hands: {}, // Clear all hands for new act
+          played: [] // Clear played cards for new act
+        };
+        
+        // Add notification about act change
+        const timestamp = Date.now();
+        const notification = {
+          type: 'act_change',
+          actNumber: nextAct,
+          timestamp,
+          text: `Akt ${nextAct} har begynt! Alle spillere får nye kort.`
+        };
+        
+        // Add to notifications list
+        game.notifications = game.notifications || {};
+        game.notifications[timestamp] = notification;
+        
+        // Also clear drama card hands and played cards for the new act
+        if (game.dramaCards) {
+          game.dramaCards = {
+            ...game.dramaCards,
+            hands: {}, // Clear all hands
+            played: {} // Clear played cards
+          };
+        }
+        
+        return game;
       });
     }
   }, [gameState?.sceneCards?.played?.length, gameId]);
+
+  // Update the notifications monitoring effect
+  useEffect(() => {
+    if (!gameId) return;
+    
+    const notificationsRef = ref(db, `games/${gameId}/notifications`);
+    const unsubscribe = onValue(notificationsRef, (snapshot) => {
+      const notifications = snapshot.val();
+      if (notifications) {
+        // Find the most recent act change notification
+        const actChangeNotifications = Object.values(notifications)
+          .filter(n => n.type === 'act_change')
+          .sort((a, b) => b.timestamp - a.timestamp);
+        
+        if (actChangeNotifications.length > 0) {
+          const latestActChange = actChangeNotifications[0];
+          // Show notification using the new component
+          setNotification(latestActChange.text);
+        }
+      }
+    });
+    
+    return () => unsubscribe();
+  }, [gameId]);
 
   // Initial setup
   useEffect(() => {
@@ -691,6 +780,12 @@ export default function ScenekortTab({ gameState }) {
 
   return (
     <div className="p-4">
+      {notification && (
+        <Notification
+          message={notification}
+          onClose={() => setNotification(null)}
+        />
+      )}
       <div className="mb-4">
         <div className="flex justify-between items-center mb-4">
           <div>

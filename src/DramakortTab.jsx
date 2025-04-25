@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
-import { ref, runTransaction, get, set } from 'firebase/database';
+import { ref, runTransaction, get, set, onValue } from 'firebase/database';
 import { fetchDramaCards } from './utils/sheetsConfig';
+import { Notification } from './components/ui/notification';
 
 const HAND_SIZE = 5;
 
@@ -11,9 +12,11 @@ export default function DramakortTab({ gameState }) {
   const [error, setError] = useState(null);
   const [actioningCards, setActioningCards] = useState(new Set());
   const [isInitialized, setIsInitialized] = useState(false);
+  const [notification, setNotification] = useState(null);
 
   const playerName = localStorage.getItem('name');
   const gameId = localStorage.getItem('gameId');
+  const character = localStorage.getItem('character');
 
   // Initialize game if needed
   const initializeGameIfNeeded = async () => {
@@ -149,7 +152,7 @@ export default function DramakortTab({ gameState }) {
     setActioningCards(prev => new Set([...prev, cardId]));
     try {
       await runTransaction(ref(db, `games/${gameId}`), (game) => {
-        if (!game || !game.dramaCards?.hands?.[playerName]) return game;
+        if (!game?.dramaCards?.hands?.[playerName]) return game;
 
         const currentHand = game.dramaCards.hands[playerName];
         const playedCard = currentHand.find(c => c.id === cardId);
@@ -159,11 +162,27 @@ export default function DramakortTab({ gameState }) {
         // Remove card from hand
         game.dramaCards.hands[playerName] = currentHand.filter(c => c.id !== cardId);
 
+        // Initialize played object if it doesn't exist
+        if (!game.dramaCards.played) {
+          game.dramaCards.played = {};
+        }
+
         // Add to played cards history
-        game.dramaCards.played = game.dramaCards.played || {};
-        game.dramaCards.played[Date.now()] = {
+        const timestamp = Date.now();
+        game.dramaCards.played[timestamp] = {
           playerId: playerName,
-          card: playedCard
+          card: playedCard,
+          timestamp
+        };
+
+        // Add notification about played card
+        const characterName = character || playerName;
+        game.notifications = game.notifications || {};
+        game.notifications[timestamp] = {
+          type: 'drama_card_played',
+          timestamp,
+          text: `${characterName} spilte dramakortet "${playedCard.title}"`,
+          cardType: playedCard.type
         };
 
         return game;
@@ -183,6 +202,29 @@ export default function DramakortTab({ gameState }) {
     }
   };
 
+  // Add effect to monitor notifications
+  useEffect(() => {
+    if (!gameId) return;
+    
+    const notificationsRef = ref(db, `games/${gameId}/notifications`);
+    const unsubscribe = onValue(notificationsRef, (snapshot) => {
+      const notifications = snapshot.val();
+      if (notifications) {
+        // Find the most recent card play notifications
+        const cardNotifications = Object.values(notifications)
+          .filter(n => n.type === 'drama_card_played' || n.type === 'scene_card_played')
+          .sort((a, b) => b.timestamp - a.timestamp);
+        
+        if (cardNotifications.length > 0) {
+          const latestNotification = cardNotifications[0];
+          setNotification(latestNotification.text);
+        }
+      }
+    });
+    
+    return () => unsubscribe();
+  }, [gameId]);
+
   if (error) {
     return (
       <div className="p-4 text-red-600">
@@ -199,6 +241,13 @@ export default function DramakortTab({ gameState }) {
 
   return (
     <div className="p-4">
+      {notification && (
+        <Notification
+          message={notification}
+          onClose={() => setNotification(null)}
+          duration={3000} // Shorter duration for card play notifications
+        />
+      )}
       <div className="mb-4">
         <h2 className="text-xl font-bold mb-2">Dramakort ({hand.length}/{HAND_SIZE})</h2>
       </div>
