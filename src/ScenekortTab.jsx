@@ -707,6 +707,15 @@ export default function ScenekortTab({ gameState }) {
               ×
             </button>
             <div className="absolute top-2 left-2 flex gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                onClick={() => setShowDirector(true)}
+                title="Regissør"
+              >
+                <Users className="h-5 w-5" />
+              </Button>
               {(previewCard.type && ['relationship', 'goal'].includes(previewCard.type.toLowerCase())) && (
                 <Button
                   variant="ghost"
@@ -722,15 +731,6 @@ export default function ScenekortTab({ gameState }) {
                   <ClipboardList className="h-5 w-5" />
                 </Button>
               )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                onClick={() => setShowDirector(true)}
-                title="Regissør"
-              >
-                <Users className="h-5 w-5" />
-              </Button>
             </div>
             <div className="mb-6">
               <h3 className="text-2xl font-bold font-cinzel tracking-wide text-[#e0d6b9] mb-2">{previewCard.title}</h3>
