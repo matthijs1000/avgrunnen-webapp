@@ -13,6 +13,8 @@ import { SceneCardItem } from './components/scenekort-tab/scene-card-item';
 import { DeckStatusBox } from './components/scenekort-tab/deck-status-box';
 import Director from './components/Director';
 import { getForingerByTypeAndAct } from './utils/foringer';
+import { Button } from './components/ui/button';
+import { ClipboardList, Users } from 'lucide-react';
 
 const HAND_SIZE = 3;
 
@@ -314,8 +316,6 @@ export default function ScenekortTab({ gameState }) {
       await runTransaction(ref(db, `games/${gameId}`), (game) => {
         if (!game || !game.sceneCards) return game;
 
-        
-        
         // Initialize hands if it doesn't exist
         if (!game.sceneCards.hands) {
           game.sceneCards.hands = {};
@@ -330,24 +330,21 @@ export default function ScenekortTab({ gameState }) {
         const currentHand = game.sceneCards.hands[playerName];
         const cardsNeeded = HAND_SIZE - currentHand.length;
 
-        
+        // LOG: Hand before drawing
+        console.log('[fillHand] Current hand before draw:', currentHand.map(c => `${c.id} (${c.title})`));
+
         if (cardsNeeded <= 0) {
-          
           return game;
         }
 
         // Get all cards that are currently in hands
         const allHandCards = Object.values(game.sceneCards.hands).flat();
         const handCardIds = new Set(allHandCards.map(card => card.id));
-        
         // Get all played cards
         const playedCards = game.sceneCards.played || [];
         const playedCardIds = new Set(playedCards.map(p => p.card.id));
-
         // Get active cards for current act
         const activeCardIds = new Set(game.sceneCards.activeCards || []);
-
-        
         // Find available cards (not in any hand AND not played)
         const currentPlayers = new Set(Object.keys(gameState?.players || {}).map(p => p.toLowerCase()));
         const availableCards = allCards.filter(card => {
@@ -355,17 +352,17 @@ export default function ScenekortTab({ gameState }) {
           const notPlayed = !playedCardIds.has(card.id);
           const isAvailable = isCardAvailableToDraw(card, playerName, playedCardIds, allHandCards);
           const assignedToCurrent = !card.playerId || currentPlayers.has(card.playerId.toLowerCase());
-          if (!notInHand) console.log(`❌ Card ${card.id} is in a hand`);
-          if (!notPlayed) console.log(`❌ Card ${card.id} has been played`);
-          if (!isAvailable) console.log(`❌ Card ${card.id} is not available to draw (${card.title}) - owned by ${card.playerId || 'none'}`);
-          if (!assignedToCurrent) console.log(`❌ Card ${card.id} is assigned to a player not in the game (${card.playerId})`);
+          if (!notInHand) console.log(`[fillHand] ❌ Card ${card.id} is in a hand`);
+          if (!notPlayed) console.log(`[fillHand] ❌ Card ${card.id} has been played`);
+          if (!isAvailable) console.log(`[fillHand] ❌ Card ${card.id} is not available to draw (${card.title}) - owned by ${card.playerId || 'none'}`);
+          if (!assignedToCurrent) console.log(`[fillHand] ❌ Card ${card.id} is assigned to a player not in the game (${card.playerId})`);
           return notInHand && notPlayed && isAvailable && assignedToCurrent;
         });
-
-        console.log(`📊 Available cards (${availableCards.length}):`, availableCards.map(c => c.id));
+        // LOG: Available cards before drawing
+        console.log('[fillHand] Available cards before draw:', availableCards.map(c => `${c.id} (${c.title})`));
 
         if (availableCards.length === 0) {
-          console.warn('🚫 No cards available');
+          console.warn('[fillHand] 🚫 No cards available');
           return game;
         }
 
@@ -377,11 +374,12 @@ export default function ScenekortTab({ gameState }) {
 
         // Draw cards
         const newCards = availableCards.slice(0, cardsNeeded);
-        console.log('🎴 Drew cards:', newCards.map(c => `${c.id} (${c.title})`));
-
+        // LOG: Cards being drawn
+        console.log('[fillHand] Drawing cards:', newCards.map(c => `${c.id} (${c.title})`));
         // Update hand
         game.sceneCards.hands[playerName] = [...currentHand, ...newCards];
-        
+        // LOG: Hand after drawing
+        console.log('[fillHand] Hand after draw:', game.sceneCards.hands[playerName].map(c => `${c.id} (${c.title})`));
         return game;
       });
     } catch (err) {
@@ -676,29 +674,8 @@ export default function ScenekortTab({ gameState }) {
               <p className="text-sm text-gray-500 mt-1">Venter på din tur som regissør...</p>
             )}
           </div>
-          <button
-            className="ml-4 px-4 py-2 bg-blue-700 rounded text-white hover:bg-blue-800"
-            onClick={() => setShowDirector(true)}
-          >
-            Regissør
-          </button>
         </div>
       </div>
-
-      {showDirector && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
-          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full relative">
-            <button
-              className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl font-bold"
-              onClick={() => setShowDirector(false)}
-              aria-label="Lukk"
-            >
-              ×
-            </button>
-            <Director />
-          </div>
-        </div>
-      )}
 
       <ul className="space-y-4 mb-8">
         {hand.map((card) => (
@@ -719,9 +696,9 @@ export default function ScenekortTab({ gameState }) {
 
       <DeckStatusBox deckStatus={deckStatus} currentAct={currentAct} />
 
-      {previewCard && (
+      {previewCard && !showDirector && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
-          <div className="bg-white rounded-lg shadow-lg max-w-lg w-full p-8 relative">
+          <div className="bg-card text-card-foreground rounded-xl shadow-lg max-w-lg w-full p-8 relative">
             <button
               className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl font-bold"
               onClick={() => setPreviewCard(null)}
@@ -729,52 +706,84 @@ export default function ScenekortTab({ gameState }) {
             >
               ×
             </button>
-            <div className="mb-6">
-              <h3 className="text-2xl font-bold mb-2">{previewCard.title}</h3>
-              {previewCard.text && (
-                <p className="text-lg text-gray-700 mb-6 whitespace-pre-line">{previewCard.text}</p>
-              )}
-              {previewCard.type && (
-                <p className="text-base text-gray-500 mb-6">Type: {previewCard.type}</p>
-              )}
-              {previewCard.playerId && (
-                <p className="text-base text-gray-500 mb-6">Rolle: {playerCharacters[previewCard.playerId.toLowerCase()]}</p>
-              )}
+            <div className="absolute top-2 left-2 flex gap-2">
               {(previewCard.type && ['relationship', 'goal'].includes(previewCard.type.toLowerCase())) && (
-                <button
-                  className="px-4 py-2 bg-green-700 text-white rounded hover:bg-green-800 mb-4"
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
                   onClick={async () => {
                     const foringer = await getForingerByTypeAndAct(previewCard.type, currentAct, true);
                     setForingerList(foringer);
                     setShowForinger(true);
                   }}
+                  title="Føringer"
                 >
-                  Føringer
-                </button>
+                  <ClipboardList className="h-5 w-5" />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                onClick={() => setShowDirector(true)}
+                title="Regissør"
+              >
+                <Users className="h-5 w-5" />
+              </Button>
+            </div>
+            <div className="mb-6">
+              <h3 className="text-2xl font-bold font-cinzel tracking-wide text-[#e0d6b9] mb-2">{previewCard.title}</h3>
+              {previewCard.text && (
+                <p className="text-lg font-garamond text-[#e7e5e4] leading-relaxed mb-6 whitespace-pre-line">{previewCard.text}</p>
+              )}
+              {previewCard.type && (
+                <p className="text-base text-muted-foreground mb-2">Type: {previewCard.type}</p>
+              )}
+              {previewCard.playerId && (
+                <p className="text-base text-muted-foreground mb-4">Rolle: {playerCharacters[previewCard.playerId.toLowerCase()]}</p>
               )}
             </div>
-            <div className="flex justify-center gap-4 mt-6">
-              <button
+            <div className="grid grid-cols-2 gap-4 mt-6">
+              <Button
+                variant="secondary"
+                size="lg"
                 onClick={() => setPreviewCard(null)}
-                className="px-6 py-2 rounded bg-gray-300 text-gray-800 hover:bg-gray-400"
+                className="font-semibold w-full"
               >
                 Angre
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="default"
+                size="lg"
                 onClick={() => playCard(previewCard.id)}
-                className="px-6 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+                className="font-semibold w-full"
                 disabled={actioningCards.has(previewCard.id)}
               >
                 {actioningCards.has(previewCard.id) ? 'Spiller...' : 'Scenen er ferdig'}
-              </button>
+              </Button>
             </div>
+          </div>
+        </div>
+      )}
+      {showDirector && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black bg-opacity-100">
+          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full relative">
+            <button
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl font-bold"
+              onClick={() => setShowDirector(false)}
+              aria-label="Lukk"
+            >
+              ×
+            </button>
+            <Director />
           </div>
         </div>
       )}
 
       {showForinger && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
-          <div className="bg-white rounded-lg shadow-lg max-w-xl w-full p-8 relative overflow-y-auto max-h-[90vh]">
+          <div className="bg-card text-card-foreground rounded-xl shadow-lg max-w-xl w-full p-8 relative overflow-y-auto max-h-[90vh]">
             <button
               className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl font-bold"
               onClick={() => setShowForinger(false)}
@@ -782,30 +791,32 @@ export default function ScenekortTab({ gameState }) {
             >
               ×
             </button>
-            <h2 className="text-xl font-bold mb-4">Føringer for {previewCard?.type}</h2>
-            <div className="space-y-6">
+            <h2 className="text-xl font-bold font-cinzel tracking-wide text-[#e0d6b9] mb-6">Føringer for {previewCard?.type}</h2>
+            <div className="space-y-4">
               {[1,2,3].map(actNum => (
-                <div key={actNum}>
-                  <h3 className={`font-semibold mb-2 ${currentAct === actNum ? 'text-blue-700' : 'text-gray-700'}`}>Akt {actNum}{currentAct === actNum ? ' (nåværende)' : ''}</h3>
-                  <ul className="list-disc ml-6">
+                <div key={actNum} className={`rounded-lg p-4 ${currentAct === actNum ? 'bg-[#1c1c1c] border border-[#333]' : 'bg-[#0e0e0e]'}`}>
+                  <h3 className={`font-cinzel tracking-wide mb-3 ${currentAct === actNum ? 'text-[#e0d6b9]' : 'text-gray-400'}`}>
+                    Akt {actNum}{currentAct === actNum ? ' (nåværende)' : ''}
+                  </h3>
+                  <div className="space-y-2">
                     {foringerList.acts[actNum]?.length > 0 ? (
                       foringerList.acts[actNum].map((f, i) => (
-                        <li key={i}>{f}</li>
+                        <p key={i} className="text-[#e7e5e4] font-garamond leading-relaxed pl-4 border-l-2 border-[#333]">{f}</p>
                       ))
                     ) : (
-                      <li className="text-gray-400 italic">Ingen føringer for denne akt</li>
+                      <p className="text-gray-500 italic pl-4">Ingen føringer for denne akt</p>
                     )}
-                  </ul>
+                  </div>
                 </div>
               ))}
               {foringerList.veien.length > 0 && (
-                <div>
-                  <h3 className="font-semibold mb-2 text-red-700">I veien for Endringen</h3>
-                  <ul className="list-disc ml-6">
+                <div className="rounded-lg p-4 bg-[#1c1c1c] border border-red-900/30">
+                  <h3 className="font-cinzel tracking-wide mb-3 text-red-300">I veien for Endringen</h3>
+                  <div className="space-y-2">
                     {foringerList.veien.map((f, i) => (
-                      <li key={i}>{f}</li>
+                      <p key={i} className="text-[#e7e5e4] font-garamond leading-relaxed pl-4 border-l-2 border-red-900/30">{f}</p>
                     ))}
-                  </ul>
+                  </div>
                 </div>
               )}
             </div>
