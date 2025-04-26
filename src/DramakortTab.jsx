@@ -75,7 +75,7 @@ export default function DramakortTab({ gameState }) {
 
   // Update hand when gameState changes
   useEffect(() => {
-    if (!gameState || !playerName || !isInitialized) return;
+    if (!gameState || !playerName) return;
 
     const playerHand = gameState.dramaCards?.hands?.[playerName] || [];
     console.log('📥 Current drama cards hand:', playerHand.length);
@@ -85,8 +85,11 @@ export default function DramakortTab({ gameState }) {
     if (playerHand.length < HAND_SIZE) {
       console.log('🎴 Hand needs', HAND_SIZE - playerHand.length, 'more cards, filling...');
       fillHand();
+    } else if (!Array.isArray(playerHand) || playerHand.length === 0) {
+      // Fallback: try to fill hand again after a short delay, in case registration just happened
+      setTimeout(() => fillHand(), 800);
     }
-  }, [gameState, playerName, isInitialized]);
+  }, [gameState, playerName]);
 
   const fillHand = async () => {
     try {

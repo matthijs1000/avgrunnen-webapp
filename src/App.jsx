@@ -15,13 +15,17 @@ import { ref, get, set, onValue, runTransaction } from 'firebase/database';
 import { fetchSceneCards, fetchDramaCards, testSheetAccess } from './utils/sheetsConfig';
 import DramakortTab from "./DramakortTab";
 import { ThemeProvider } from './ThemeContext';
+import Lobby from './Lobby';
+import { GROUP_NAME, PLAYER_OPTIONS } from './constants';
 
 export default function AvgrunnenApp() {
-  const [ready, setReady] = useState(false);
+  // All useState and useEffect hooks at the top
   const [isInitializing, setIsInitializing] = useState(false);
   const [isPlayerRegistered, setIsPlayerRegistered] = useState(false);
   const [error, setError] = useState(null);
   const [gameState, setGameState] = useState(null);
+  const [gameStarted, setGameStarted] = useState(false);
+  const [players, setPlayers] = useState({});
 
   // Initialize game data if needed
   const initializeGameData = async (gameId) => {
@@ -48,6 +52,19 @@ export default function AvgrunnenApp() {
         throw new Error('No player name found');
       }
 
+      // Fetch the list of joined players
+      const groupRef = ref(db, `games/${gameId}/players`);
+      const playersSnap = await get(groupRef);
+      const joinedPlayers = playersSnap.exists() ? Object.entries(playersSnap.val()).map(([playerName, playerData]) => ({ name: playerName, ...playerData })) : [];
+      // If the current player is not in the list, add them
+      if (!joinedPlayers.find(p => p.name === name)) {
+        joinedPlayers.push({ name, character: character || name, joinedAt: Date.now() });
+      }
+      // Sort by join time for director order
+      joinedPlayers.sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0));
+      const directorOrder = joinedPlayers.map(p => p.name);
+      const firstDirector = directorOrder[0] || null;
+
       // Initialize game if needed first
       const gameRef = ref(db, `games/${gameId}`);
       const gameSnap = await get(gameRef);
@@ -69,22 +86,37 @@ export default function AvgrunnenApp() {
         if (actOneCards.length === 0) throw new Error('No Act 1 cards found');
         
         // Set up initial game state
+        const initialPlayers = {};
+        joinedPlayers.forEach(p => {
+          initialPlayers[p.name] = {
+            character: p.character || p.name,
+            joinedAt: p.joinedAt || Date.now(),
+            initialized: true
+          };
+        });
+        const initialDramaHands = {};
+        const initialSceneHands = {};
+        joinedPlayers.forEach(p => {
+          initialDramaHands[p.name] = [];
+          initialSceneHands[p.name] = [];
+        });
         const initialState = {
           dramaCards: {
             cards: dramaCards,
-            hands: {},
+            hands: initialDramaHands,
             played: {}
           },
           sceneCards: {
             cards: allSceneCards,
             activeCards: actOneCards.map(card => card.id),
-            hands: {},
+            hands: initialSceneHands,
             played: [],
             currentAct: 1
           },
-          players: {},
+          players: initialPlayers,
           currentTurn: 1,
-          currentDirector: null,
+          currentDirector: firstDirector,
+          directorOrder: directorOrder,
           turnHistory: []
         };
         
@@ -117,7 +149,8 @@ export default function AvgrunnenApp() {
                 currentAct
               },
               currentTurn: data.currentTurn || 1,
-              currentDirector: data.currentDirector || null,
+              currentDirector: data.currentDirector || firstDirector,
+              directorOrder: data.directorOrder || directorOrder,
               turnHistory: data.turnHistory || []
             };
           });
@@ -144,7 +177,6 @@ export default function AvgrunnenApp() {
       // Initialize hands if needed
       await runTransaction(ref(db, `games/${gameId}`), (game) => {
         if (!game) return game;
-
         // Ensure drama cards hand exists
         if (!game.dramaCards?.hands?.[name]) {
           game.dramaCards = {
@@ -155,7 +187,6 @@ export default function AvgrunnenApp() {
             }
           };
         }
-
         // Ensure scene cards hand exists
         if (!game.sceneCards?.hands?.[name]) {
           game.sceneCards = {
@@ -166,7 +197,6 @@ export default function AvgrunnenApp() {
             }
           };
         }
-
         return game;
       });
       
@@ -187,10 +217,7 @@ export default function AvgrunnenApp() {
   useEffect(() => {
     const name = localStorage.getItem("name");
     const gameId = localStorage.getItem("gameId");
-    
     if (!name || !gameId) return;
-
-    console.log('👀 Monitoring game state');
     const gameRef = ref(db, `games/${gameId}`);
     const unsubscribe = onValue(gameRef, (snapshot) => {
       const game = snapshot.val();
@@ -198,7 +225,6 @@ export default function AvgrunnenApp() {
         setGameState(game);
       }
     });
-
     return () => unsubscribe();
   }, []);
 
@@ -206,40 +232,43 @@ export default function AvgrunnenApp() {
   useEffect(() => {
     const name = localStorage.getItem("name");
     const gameId = localStorage.getItem("gameId");
-    
     if (!name || !gameId) {
       setIsPlayerRegistered(false);
       return;
     }
-
-    console.log('👀 Monitoring player registration for:', name);
     const playerRef = ref(db, `games/${gameId}/players/${name}`);
     const unsubscribe = onValue(playerRef, (snapshot) => {
       const player = snapshot.val();
       const isRegistered = player?.initialized === true;
-      console.log('👤 Player registration status:', isRegistered ? 'Registered' : 'Not registered');
       setIsPlayerRegistered(isRegistered);
     });
-
     return () => unsubscribe();
   }, []);
 
-  // Handle initial load
+  // Listen for gameStarted and players in Firebase
+  useEffect(() => {
+    const groupRef = ref(db, `games/${GROUP_NAME}`);
+    const unsub = onValue(groupRef, (snap) => {
+      const data = snap.val() || {};
+      setPlayers(data.players || {});
+      setGameStarted(!!data.gameStarted);
+    });
+    return () => unsub();
+  }, []);
+
+  // Handle initial load (move this up with other hooks)
   useEffect(() => {
     const name = localStorage.getItem("name");
     const gameId = localStorage.getItem("gameId");
     console.log("📝 Initial load check:", { name, gameId });
-    
     if (!name || !gameId) {
       console.log('⏳ Waiting for name and gameId...');
       return;
     }
-
     // Ensure game is initialized and player is registered
     initializeGameData(gameId)
       .then(() => {
         console.log('🎮 Game and player ready');
-        setReady(true);
       })
       .catch((err) => {
         console.error('❌ Initialization failed:', err);
@@ -249,129 +278,96 @@ export default function AvgrunnenApp() {
       });
   }, []);
 
-  const handleSubmit = async ({ name, gameId }) => {
-    try {
-      setError(null);
-      setReady(false);
-      setIsPlayerRegistered(false);
-      setGameState(null);
-      
-      localStorage.setItem("name", name);
-      localStorage.setItem("gameId", gameId);
-      
-      await initializeGameData(gameId);
-      setReady(true);
-    } catch (err) {
-      console.error('Failed to initialize game:', err);
-      setError('Kunne ikke koble til spillet. Prøv igjen.');
-    }
-  };
-
-  // Add helper function to filter cards by act
-  const filterCardsByAct = (cards, actNumber) => {
-    return cards.filter(card => {
-      // Use correct property name with space
-      const actKey = `act ${actNumber}`;
-      // Log the actual card data to debug
-      console.log(`🎴 Card ${card.id} data:`, card);
-      console.log(`🎭 Card ${card.id} in act ${actNumber}:`, card[actKey]);
-      // Convert the act value to boolean, handling both string "TRUE" and boolean true
-      const isInAct = String(card[actKey] || '').toUpperCase() === "TRUE" || card[actKey] === true;
-      console.log(`✨ Card ${card.id} active:`, isInAct);
-      return isInAct;
+  // Consistency check: On mount, if localStorage has a name, check if that name is in Firebase players
+  useEffect(() => {
+    const name = localStorage.getItem("name");
+    const gameId = localStorage.getItem("gameId");
+    if (!name || !gameId) return;
+    const playerRef = ref(db, `games/${gameId}/players/${name}`);
+    get(playerRef).then((snap) => {
+      if (!snap.exists()) {
+        console.warn('[App] Local player not found in Firebase, clearing localStorage and reloading');
+        localStorage.clear();
+        window.location.reload();
+      }
     });
-  };
+  }, []);
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-[#e8f0ea] text-gray-900 font-sans flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">{error}</p>
-          <Button onClick={() => window.location.reload()}>
-            Prøv igjen
-          </Button>
-        </div>
-      </div>
-    );
+  // Show Lobby if user has not picked a name
+  const name = localStorage.getItem("name");
+  if (!name) {
+    return <Lobby onReady={() => setGameStarted(true)} onRegister={initializeGameData} />;
   }
 
-  if (isInitializing) {
-    return (
-      <div className="min-h-screen bg-[#e8f0ea] text-gray-900 font-sans flex items-center justify-center">
-        <div className="text-center">
-          <p className="mb-2">Initialiserer spill...</p>
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-        </div>
-      </div>
-    );
+  // Show Lobby if game hasn't started
+  if (!gameStarted) {
+    return <Lobby onReady={() => setGameStarted(true)} onRegister={initializeGameData} />;
   }
 
   return (
     <ThemeProvider>
       <div className="min-h-screen font-sans pb-20" style={{ background: 'var(--bg-main)', color: 'var(--text-main)' }}>
-        {!ready ? (
-          <NameAndGame onSubmit={handleSubmit} />
-        ) : (
-          <>
-            <GameStatusBar gameState={gameState} />
-            <div className="w-full max-w-md mx-auto p-4 mt-12">
-              <div className="mb-6 text-center">
-                <h1 className="text-xl font-semibold text-gray-800">
-                  Velkommen, {localStorage.getItem("name")}
-                </h1>
-              </div>
-              <Tabs defaultValue="dramakort" className="w-full">
-                <TabsContent value="dramakort">
-                  <DramakortTab gameState={gameState} />
-                </TabsContent>
-
-                <TabsContent value="scenekort" className="mt-4">
-                  {isPlayerRegistered ? (
-                    <ScenekortTab gameState={gameState} />
-                  ) : (
-                    <div className="text-center p-4">
-                      <p>Venter på spillerregistrering...</p>
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto mt-2"></div>
-                    </div>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="regler" className="mt-4">
-                  <RulesTab />
-                </TabsContent>
-
-                <TabsContent value="roller" className="mt-4">
-                  {isPlayerRegistered ? (
-                    <RollerTab gameState={gameState} />
-                  ) : (
-                    <div className="text-center p-4">
-                      <p>Venter på spillerregistrering...</p>
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto mt-2"></div>
-                    </div>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="regissor" className="mt-4">
-                  <RegissorTab />
-                </TabsContent>
-
-                <TabsContent value="admin" className="mt-4">
-                  <AdminTab gameState={gameState} />
-                </TabsContent>
-
-                <TabsList className="fixed bottom-0 left-0 right-0 flex justify-around bg-white border-t shadow-md">
-                  <TabsTrigger value="dramakort">Dramakort</TabsTrigger>
-                  <TabsTrigger value="scenekort">Scenekort</TabsTrigger>
-                  <TabsTrigger value="regler">Regler</TabsTrigger>
-                  <TabsTrigger value="roller">Roller</TabsTrigger>
-                  <TabsTrigger value="regissor">Regissør</TabsTrigger>
-                  <TabsTrigger value="admin">Admin</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-          </>
-        )}
+        <GameStatusBar gameState={gameState} />
+        <div className="w-full max-w-md mx-auto p-4 mt-12">
+          <Tabs defaultValue="dramakort" className="w-full">
+            <TabsContent value="dramakort">
+              <DramakortTab gameState={gameState} />
+            </TabsContent>
+            <TabsContent value="scenekort" className="mt-4">
+              {isPlayerRegistered ? (
+                <ScenekortTab gameState={gameState} />
+              ) : (
+                <div className="text-center p-4">
+                  <p>Venter på spillerregistrering...</p>
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto mt-2"></div>
+                </div>
+              )}
+            </TabsContent>
+            <TabsContent value="regler" className="mt-4">
+              <RulesTab />
+            </TabsContent>
+            <TabsContent value="roller" className="mt-4">
+              {isPlayerRegistered ? (
+                <RollerTab gameState={gameState} />
+              ) : (
+                <div className="text-center p-4">
+                  <p>Venter på spillerregistrering...</p>
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto mt-2"></div>
+                </div>
+              )}
+            </TabsContent>
+            <TabsContent value="regissor" className="mt-4">
+              <RegissorTab />
+            </TabsContent>
+            <TabsContent value="admin" className="mt-4">
+              <AdminTab gameState={gameState} />
+            </TabsContent>
+            <TabsList className="fixed bottom-0 left-0 right-0 flex justify-around bg-white border-t shadow-md">
+              <TabsTrigger value="dramakort">Dramakort</TabsTrigger>
+              <TabsTrigger value="scenekort">Scenekort</TabsTrigger>
+              <TabsTrigger value="regler">Regler</TabsTrigger>
+              <TabsTrigger value="roller">Roller</TabsTrigger>
+              <TabsTrigger value="regissor">Regissør</TabsTrigger>
+              <TabsTrigger value="admin">Admin</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       </div>
     </ThemeProvider>
   );
 }
+
+// Add helper function to filter cards by act
+const filterCardsByAct = (cards, actNumber) => {
+  return cards.filter(card => {
+    // Use correct property name with space
+    const actKey = `act ${actNumber}`;
+    // Log the actual card data to debug
+    console.log(`🎴 Card ${card.id} data:`, card);
+    console.log(`🎭 Card ${card.id} in act ${actNumber}:`, card[actKey]);
+    // Convert the act value to boolean, handling both string "TRUE" and boolean true
+    const isInAct = String(card[actKey] || '').toUpperCase() === "TRUE" || card[actKey] === true;
+    console.log(`✨ Card ${card.id} active:`, isInAct);
+    return isInAct;
+  });
+};

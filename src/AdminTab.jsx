@@ -179,6 +179,16 @@ export default function AdminTab({ gameState }) {
     }
   };
 
+  const handleLogout = async () => {
+    const name = localStorage.getItem('name');
+    const gameId = localStorage.getItem('gameId');
+    if (name && gameId) {
+      await runTransaction(ref(db, `games/${gameId}/players/${name}`), () => null);
+    }
+    localStorage.clear();
+    window.location.reload();
+  };
+
   return (
     <div className="p-4">
       <h2 className="text-xl font-bold mb-4">Admin</h2>
@@ -228,11 +238,8 @@ export default function AdminTab({ gameState }) {
 
       {/* Logout Button */}
       <div className="mt-4">
-        <button 
-          onClick={() => {
-            localStorage.clear();
-            window.location.reload();
-          }}
+        <button
+          onClick={handleLogout}
           className="w-full py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
         >
           Logg ut
