@@ -785,36 +785,46 @@ export default function ScenekortTab({ gameState }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
           <div className="bg-card text-card-foreground rounded-xl shadow-lg max-w-xl w-full p-8 relative overflow-y-auto max-h-[90vh]">
             <button
-              className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl font-bold"
+              className="absolute top-2 right-2 text-muted-foreground hover:text-foreground text-2xl font-bold"
               onClick={() => setShowForinger(false)}
               aria-label="Lukk"
             >
               ×
             </button>
-            <h2 className="text-xl font-bold font-cinzel tracking-wide text-[#e0d6b9] mb-6">Føringer for {previewCard?.type}</h2>
+            <h2 className="text-xl font-bold font-cinzel tracking-wide text-primary mb-6">Føringer for {previewCard?.type}</h2>
             <div className="space-y-4">
               {[1,2,3].map(actNum => (
-                <div key={actNum} className={`rounded-lg p-4 ${currentAct === actNum ? 'bg-[#1c1c1c] border border-[#333]' : 'bg-[#0e0e0e]'}`}>
-                  <h3 className={`font-cinzel tracking-wide mb-3 ${currentAct === actNum ? 'text-[#e0d6b9]' : 'text-gray-400'}`}>
+                <div key={actNum} 
+                  className={`rounded-lg p-4 ${
+                    currentAct === actNum 
+                    ? 'bg-muted border border-border' 
+                    : 'bg-background'
+                  }`}
+                >
+                  <h3 className={`font-cinzel tracking-wide mb-3 ${
+                    currentAct === actNum 
+                    ? 'text-primary' 
+                    : 'text-muted-foreground'
+                  }`}>
                     Akt {actNum}{currentAct === actNum ? ' (nåværende)' : ''}
                   </h3>
                   <div className="space-y-2">
                     {foringerList.acts[actNum]?.length > 0 ? (
                       foringerList.acts[actNum].map((f, i) => (
-                        <p key={i} className="text-[#e7e5e4] font-garamond leading-relaxed pl-4 border-l-2 border-[#333]">{f}</p>
+                        <p key={i} className="text-card-foreground font-garamond leading-relaxed pl-4 border-l-2 border-border">{f}</p>
                       ))
                     ) : (
-                      <p className="text-gray-500 italic pl-4">Ingen føringer for denne akt</p>
+                      <p className="text-muted-foreground italic pl-4">Ingen føringer for denne akt</p>
                     )}
                   </div>
                 </div>
               ))}
               {foringerList.veien.length > 0 && (
-                <div className="rounded-lg p-4 bg-[#1c1c1c] border border-red-900/30">
-                  <h3 className="font-cinzel tracking-wide mb-3 text-red-300">I veien for Endringen</h3>
+                <div className="rounded-lg p-4 bg-muted/50 border border-destructive/20">
+                  <h3 className="font-cinzel tracking-wide mb-3 text-destructive">I veien for Endringen</h3>
                   <div className="space-y-2">
                     {foringerList.veien.map((f, i) => (
-                      <p key={i} className="text-[#e7e5e4] font-garamond leading-relaxed pl-4 border-l-2 border-red-900/30">{f}</p>
+                      <p key={i} className="text-card-foreground font-garamond leading-relaxed pl-4 border-l-2 border-destructive/20">{f}</p>
                     ))}
                   </div>
                 </div>
