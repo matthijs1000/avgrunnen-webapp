@@ -1,7 +1,11 @@
+import Papa from 'papaparse';
+
 // Google Sheets configuration
 export const SHEET_ID = '1CS9CjOEJlG0etC8JI117DTY-FRU9Pstm20De_iuxtK4';
 export const DRAMA_SHEET_GID = '0';
 export const SCENE_SHEET_GID = '1815867176';
+
+
 
 // Required columns in the sheet
 const DRAMA_REQUIRED_COLUMNS = ['id', 'title', 'text'];
@@ -81,52 +85,31 @@ async function fetchCardsFromSheet(isSceneCards = false) {
     console.log('📝 Total data length:', text.length);
     console.log('📝 Contains BOM:', text.charCodeAt(0) === 0xFEFF ? 'Yes' : 'No');
     
-    // Parse CSV data using proper quote handling
-    const rows = text.split('\n').map(row => parseCSVRow(row));
-    console.log('📊 Total rows found:', rows.length);
-    console.log('📊 First row (headers):', rows[0]);
-    
-    if (rows.length < 2) {
+    const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+    const cards = parsed.data;
+    console.log('📊 Total rows found:', cards.length);
+    if (cards.length === 0) {
       console.error('❌ Sheet is empty or has no data rows');
       throw new Error('Sheet is empty or has no data rows');
     }
 
     // Validate headers
-    const headers = rows[0].map(h => h.toLowerCase().replace(/\s+/g, ''));
+    const headers = Object.keys(cards[0]).map(h => h.toLowerCase().replace(/\s+/g, ''));
     console.log('👀 Found headers (normalized):', headers);
-    
     const requiredColumns = isSceneCards ? SCENE_REQUIRED_COLUMNS : DRAMA_REQUIRED_COLUMNS;
     const missingColumns = requiredColumns.filter(col => !headers.includes(col));
-    
     if (missingColumns.length > 0) {
       console.error('❌ Missing required columns:', missingColumns);
       throw new Error(`Missing required columns: ${missingColumns.join(', ')}`);
     }
 
-    // Convert remaining rows to card objects
-    const cards = [];
+    // Validate and collect valid cards
+    const validCards = [];
     const errors = [];
-
-    // Create a map of normalized header to original header
-    const headerMap = {};
-    rows[0].forEach(header => {
-      const normalized = header.toLowerCase().replace(/\s+/g, '');
-      headerMap[normalized] = normalized === 'playerid' ? 'playerId' : header.replace(/\s+/g, '');
-    });
-
-    rows.slice(1).forEach((row, index) => {
-      console.log(`🃏 Processing row ${index + 2}:`, row);
-      const card = {};
-      rows[0].forEach((header, colIndex) => {
-        const normalizedHeader = header.toLowerCase().replace(/\s+/g, '');
-        const mappedHeader = headerMap[normalizedHeader];
-        card[mappedHeader] = row[colIndex] || '';
-      });
-
-      // Validate card data
+    cards.forEach((card, index) => {
       const cardErrors = validateCard(card, index, isSceneCards);
       if (cardErrors.length === 0) {
-        cards.push(card);
+        validCards.push(card);
         console.log(`✅ Valid card found:`, card);
       } else {
         errors.push(...cardErrors);
@@ -134,21 +117,24 @@ async function fetchCardsFromSheet(isSceneCards = false) {
       }
     });
 
-    // Log any errors but continue if we have valid cards
     if (errors.length > 0) {
       console.warn('⚠️ Warnings while loading cards:', errors);
     }
 
-    if (cards.length === 0) {
+    if (validCards.length === 0) {
       console.error('❌ No valid cards found in sheet');
       throw new Error('No valid cards found in sheet');
     }
 
-    console.log(`📥 Successfully loaded ${cards.length} cards from sheet`);
-    console.log('📋 First card as example:', cards[0]);
-    console.log('📋 Last card as example:', cards[cards.length - 1]);
+    console.log(`📥 Successfully loaded ${validCards.length} cards from sheet`);
+    console.log('📋 First card as example:', validCards[0]);
+    console.log('📋 Last card as example:', validCards[validCards.length - 1]);
+    console.log('📋 All cards and their act values:');
+    validCards.forEach((card, idx) => {
+      console.log(`${idx}: id=${card.id}, title=${card.title}, act1=${card['act 1']}, act2=${card['act 2']}, act3=${card['act 3']}`);
+    });
     
-    return cards;
+    return validCards;
 
   } catch (error) {
     console.error('❌ Error in fetchCardsFromSheet:', error);

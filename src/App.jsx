@@ -13,6 +13,7 @@ import { GameStatusBar } from './components/ui/GameStatusBar';
 import { db } from './firebaseConfig';
 import { ref, get, set, onValue, runTransaction } from 'firebase/database';
 import { fetchSceneCards, fetchDramaCards, testSheetAccess } from './utils/sheetsConfig';
+import DramakortTab from "./DramakortTab";
 
 export default function AvgrunnenApp() {
   const [ready, setReady] = useState(false);
@@ -268,8 +269,8 @@ export default function AvgrunnenApp() {
   // Add helper function to filter cards by act
   const filterCardsByAct = (cards, actNumber) => {
     return cards.filter(card => {
-      // Remove space in property name
-      const actKey = `act${actNumber}`;
+      // Use correct property name with space
+      const actKey = `act ${actNumber}`;
       // Log the actual card data to debug
       console.log(`🎴 Card ${card.id} data:`, card);
       console.log(`🎭 Card ${card.id} in act ${actNumber}:`, card[actKey]);
@@ -319,7 +320,7 @@ export default function AvgrunnenApp() {
             </div>
             <Tabs defaultValue="dramakort" className="w-full">
               <TabsContent value="dramakort">
-                <KortTabFirebase gameState={gameState} />
+                <DramakortTab gameState={gameState} />
               </TabsContent>
 
               <TabsContent value="scenekort" className="mt-4">

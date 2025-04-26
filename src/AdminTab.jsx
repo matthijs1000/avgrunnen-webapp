@@ -6,7 +6,8 @@ import { fetchSceneCards } from './utils/sheetsConfig';
 // Add helper function to filter cards by act
 const filterCardsByAct = (cards, actNumber) => {
   return cards.filter(card => {
-    const actKey = `act${actNumber}`;
+    const actKey = `act ${actNumber}`;
+    console.log(`🎭 Card ${card.id} for act key ${actKey}`, card[actKey]);
     // Convert the act value to boolean, handling both string "TRUE" and boolean true
     const isInAct = String(card[actKey] || '').toUpperCase() === "TRUE" || card[actKey] === true;
     console.log(`🎭 Card ${card.id} in act ${actNumber}:`, isInAct);

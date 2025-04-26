@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { db } from './firebaseConfig';
 import {
   ref,
@@ -8,125 +8,11 @@ import {
   onValue,
 } from 'firebase/database';
 import { fetchSceneCards } from './utils/sheetsConfig';
+import { getCardPlayerId, isCardOwnedByPlayer, isCardAvailableToDraw, normalizePlayerId, isCardPlayable } from './components/scenekort-tab/helpers';
+import { SceneCardItem } from './components/scenekort-tab/scene-card-item';
+import { DeckStatusBox } from './components/scenekort-tab/deck-status-box';
 
 const HAND_SIZE = 3;
-
-// Helper function to check if a card belongs to a player (case-insensitive)
-const getCardPlayerId = (card) => {
-  // Handle both playerId and playerid cases
-  const id = card.playerId || '';
-  return id.trim();
-};
-
-const isCardOwnedByPlayer = (card, playerName) => {
-  const id = getCardPlayerId(card);
-  return id && id.toLowerCase() === playerName.toLowerCase();
-};
-
-// Helper function to check if a card is available to draw
-const isCardAvailableToDraw = (card, playerName, playedCards, allHandCards, activeCardIds) => {
-  // First check if the card is active in the current act
-  if (activeCardIds && !activeCardIds.has(card.id)) {
-    return false;
-  }
-
-  // Card is available if:
-  // 1. It hasn't been played yet AND
-  // 2. It's not in anyone's hand AND
-  // 3. It's either unowned OR owned by the current player
-  const cardPlayerId = getCardPlayerId(card)?.toLowerCase();
-  const currentPlayerName = playerName.toLowerCase();
-  const notInHand = !allHandCards.some(handCard => handCard.id === card.id);
-  
-  const isAvailable = !playedCards.has(card.id) && 
-                     notInHand && 
-                     (!cardPlayerId || cardPlayerId === currentPlayerName);
-  return isAvailable;
-};
-
-// Helper function to normalize player ID case
-const normalizePlayerId = (playerId) => {
-  return playerId.toLowerCase();
-};
-
-// Scene card type icons component
-const TypeIcon = ({ type }) => {
-  switch (type?.toLowerCase()) {
-    case 'relationship':
-      return (
-        <div className="flex items-center text-pink-400" title="Relasjonsscene">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-          </svg>
-        </div>
-      );
-    case 'goal':
-      return (
-        <div className="flex items-center text-yellow-400" title="Målscene">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-          </svg>
-        </div>
-      );
-    case 'breathing':
-      return (
-        <div className="flex items-center text-blue-400" title="Pustescene">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 2a8 8 0 100 16zm0 14a6 6 0 110-12 6 6 0 010 12zm0-9a1 1 0 011 1v3a1 1 0 11-2 0V8a1 1 0 011-1z" clipRule="evenodd" />
-          </svg>
-        </div>
-      );
-    case 'development':
-      return (
-        <div className="flex items-center text-green-400" title="Utviklingsscene">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-          </svg>
-        </div>
-      );
-    case 'exploration':
-      return (
-        <div className="flex items-center text-purple-400" title="Utforskningsscene">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M9 9a2 2 0 114 0 2 2 0 01-4 0z" />
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a4 4 0 00-3.446 6.032l-2.261 2.26a1 1 0 101.414 1.415l2.261-2.261A4 4 0 1011 5z" clipRule="evenodd" />
-          </svg>
-        </div>
-      );
-    case 'plan':
-      return (
-        <div className="flex items-center text-orange-400" title="Planleggingsscene">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm11 1H6v8l4-2 4 2V6z" clipRule="evenodd" />
-          </svg>
-        </div>
-      );
-    case 'change':
-      return (
-        <div className="flex items-center text-indigo-400" title="Endringsscene">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-          </svg>
-        </div>
-      );
-    default:
-      return (
-        <div className="flex items-center text-gray-400" title="Annen type scene">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-          </svg>
-        </div>
-      );
-  }
-};
-
-// Helper function to check if a card is playable by a player
-const isCardPlayable = (card, playerName, playedCards, playerHand) => {
-  // Card is playable if:
-  // 1. It's in the player's hand AND
-  // 2. It hasn't been played yet
-  return playerHand.includes(card.id) && !playedCards.has(card.id);
-};
 
 export default function ScenekortTab({ gameState }) {
   const [sceneCards, setSceneCards] = useState([]);
@@ -621,7 +507,7 @@ export default function ScenekortTab({ gameState }) {
         
         // Filter cards for the new act
         const nextActCards = game.sceneCards.cards.filter(card => {
-          const actKey = `act${nextAct}`;
+          const actKey = `act ${nextAct}`;
           return String(card[actKey] || '').toUpperCase() === "TRUE" || card[actKey] === true;
         });
         
@@ -780,86 +666,18 @@ export default function ScenekortTab({ gameState }) {
 
       <ul className="space-y-4 mb-8">
         {hand.map((card) => (
-          <li 
-            key={card.id} 
-            className="card"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-lg font-bold text-white">{card.title}</h3>
-              <TypeIcon type={card.type} />
-            </div>
-            {card.text && (
-              <p className="text-sm text-gray-300 leading-relaxed mb-3">
-                {card.text}
-              </p>
-            )}
-            {card.image && (
-              <div className="mb-3 rounded-md overflow-hidden shadow-sm">
-                <img 
-                  src={card.image}
-                  alt={card.title}
-                  className="w-full h-48 object-cover hover:scale-105 transition-transform duration-200"
-                  onError={(e) => {
-                    console.log('Failed to load image:', card.image);
-                    e.target.style.display = 'none';
-                  }}
-                />
-              </div>
-            )}
-            <div className="flex flex-col space-y-2">
-              {card.playerId && (() => {
-                const ownershipDetails = {
-                  cardId: card.id,
-                  cardTitle: card.title,
-                  cardPlayerIdLower: card.playerId.toLowerCase(),
-                  playerCharacters,
-                  lookupKey: card.playerId.toLowerCase(),
-                  characterFound: playerCharacters[card.playerId.toLowerCase()],
-                  allKeys: Object.keys(playerCharacters),
-                  allKeysLower: Object.keys(playerCharacters).map(k => k.toLowerCase()),
-                  exactMatch: playerCharacters[card.playerId],
-                  keyExists: card.playerId.toLowerCase() in playerCharacters,
-                };
-                const characterName = playerCharacters[card.playerId.toLowerCase()];
-                return characterName && (
-                  <div className="text-sm text-gray-400 text-right italic">
-                    Eies av: {characterName}
-                  </div>
-                );
-              })()}
-              <div className="flex justify-end">
-                <button 
-                  onClick={() => playCard(card.id)}
-                  disabled={actioningCards.has(card.id) || !gameState?.gameStarted || gameState.currentDirector !== playerName}
-                  className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:bg-gray-400"
-                >
-                  {actioningCards.has(card.id) ? 'Spiller...' : 'Spill'}
-                </button>
-              </div>
-            </div>
-          </li>
+          <SceneCardItem
+            key={card.id}
+            card={card}
+            playerCharacters={playerCharacters}
+            isPlaying={actioningCards.has(card.id)}
+            canPlay={gameState?.gameStarted && gameState.currentDirector === playerName}
+            onPlay={playCard}
+          />
         ))}
       </ul>
 
-      {/* Deck Status Box */}
-      <div className="fixed bottom-16 left-0 right-0 mx-4">
-        <div className="bg-gray-800 rounded-lg p-4 shadow-lg">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            <div className="text-gray-300">
-              <span className="font-semibold">Akt:</span> {gameState?.sceneCards?.currentAct || 1}
-            </div>
-            <div className={`text-gray-300 ${deckStatus.inDeck === 0 ? 'text-red-500 font-bold' : ''}`}>
-              <span className="font-semibold">Kort i bunken:</span> {deckStatus.inDeck}
-            </div>
-            <div className="text-gray-300">
-              <span className="font-semibold">Spilte kort:</span> {deckStatus.played}
-            </div>
-            <div className="text-gray-300">
-              <span className="font-semibold">Kort i spillerhender:</span> {deckStatus.inOtherHands}
-            </div>
-          </div>
-        </div>
-      </div>
+      <DeckStatusBox deckStatus={deckStatus} currentAct={gameState?.sceneCards?.currentAct || 1} />
     </div>
   );
 } 
