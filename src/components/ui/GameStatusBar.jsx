@@ -29,10 +29,10 @@ export function GameStatusBar({ gameState }) {
   const currentTurn = gameState.currentTurn || 1;
   const currentDirector = gameState.currentDirector;
   
-  // Get director's character name
+  // Get director's player name
   let directorDisplay = 'Ikke valgt';
-  if (currentDirector && gameState.players?.[currentDirector]) {
-    directorDisplay = gameState.players[currentDirector].character || currentDirector;
+  if (currentDirector) {
+    directorDisplay = currentDirector;
   }
 
   // Only show director if game has started
