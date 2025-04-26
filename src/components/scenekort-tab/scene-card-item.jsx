@@ -1,5 +1,6 @@
 import React from 'react';
 import { TypeIcon } from './type-icon';
+import { useTheme } from '../../ThemeContext';
 /**
  * @param {Object} props
  * @param {Object} props.card
@@ -9,29 +10,53 @@ import { TypeIcon } from './type-icon';
  * @param {function} props.onPlay
  */
 export function SceneCardItem({ card, playerCharacters, isPlaying, canPlay, onPlay }) {
-  // Map scene types to color and style
-  const typeStyles = {
-    relationship: 'border-l-4 border-pink-900 bg-pink-950/60',
-    goal: 'border-l-4 border-yellow-900 bg-yellow-950/60',
-    exploration: 'border-l-4 border-purple-900 bg-purple-950/60',
-    development: 'border-l-4 border-green-900 bg-green-950/60',
-    change: 'border-l-4 border-indigo-900 bg-indigo-950/60',
-    plan: 'border-l-4 border-orange-900 bg-orange-950/60',
-    default: 'border-l-4 border-gray-800 bg-gray-900/60',
+  const { theme } = useTheme();
+  // Map scene types to color and style for each theme
+  const themeTypeStyles = {
+    lovecraft: {
+      relationship: 'border-l-4 border-pink-900 bg-pink-400/25',
+      goal: 'border-l-4 border-yellow-900 bg-yellow-300/25',
+      exploration: 'border-l-4 border-purple-900 bg-purple-400/25',
+      development: 'border-l-4 border-green-900 bg-green-400/25',
+      change: 'border-l-4 border-indigo-900 bg-indigo-400/25',
+      plan: 'border-l-4 border-orange-900 bg-orange-300/25',
+      default: 'border-l-4 border-gray-800 bg-gray-700/25',
+    },
+    'russia-1984': {
+      relationship: 'border-l-4 border-red-900 bg-red-400/20',
+      goal: 'border-l-4 border-blue-900 bg-blue-300/20',
+      exploration: 'border-l-4 border-gray-700 bg-gray-400/20',
+      development: 'border-l-4 border-green-800 bg-green-300/20',
+      change: 'border-l-4 border-yellow-900 bg-yellow-200/20',
+      plan: 'border-l-4 border-orange-900 bg-orange-300/20',
+      default: 'border-l-4 border-gray-800 bg-gray-300/20',
+    },
+    'norway-1946': {
+      relationship: 'border-l-4 border-green-700 bg-green-200/40',
+      goal: 'border-l-4 border-blue-900 bg-blue-100/40',
+      exploration: 'border-l-4 border-yellow-700 bg-yellow-100/40',
+      development: 'border-l-4 border-gray-700 bg-gray-200/40',
+      change: 'border-l-4 border-indigo-700 bg-indigo-100/40',
+      plan: 'border-l-4 border-orange-700 bg-orange-100/40',
+      default: 'border-l-4 border-gray-400 bg-gray-100/40',
+    },
+    'colombia-1972': {
+      relationship: 'border-l-4 border-green-700 bg-green-300/70',
+      goal:        'border-l-4 border-yellow-700 bg-yellow-300/70',
+      exploration: 'border-l-4 border-blue-700 bg-blue-300/70',
+      development: 'border-l-4 border-orange-700 bg-orange-300/70',
+      change:      'border-l-4 border-pink-700 bg-pink-300/70',
+      plan:        'border-l-4 border-purple-700 bg-purple-300/70',
+      default:     'border-l-4 border-gray-400 bg-gray-100/70',
+    },
   };
   // Normalize type
   const typeKey = (card.type || '').toLowerCase().trim();
+  const typeStyles = themeTypeStyles[theme] || themeTypeStyles.lovecraft;
   const cardStyle = typeStyles[typeKey] || typeStyles.default;
 
   return (
-    <li key={card.id} className={`lovecraft-card ${cardStyle} mb-4 relative overflow-hidden p-6`} style={{
-      backgroundImage: "url('https://www.transparenttextures.com/patterns/old-mat.png')",
-      backgroundBlendMode: 'multiply',
-      borderRadius: '0.75rem',
-      borderWidth: '2px',
-      borderColor: '#3b2f2f',
-      boxShadow: '0 4px 32px 0 rgba(40, 20, 60, 0.25), 0 0 0 8px rgba(30, 20, 40, 0.08) inset',
-    }}>
+    <li key={card.id} className={`lovecraft-card ${cardStyle} mb-4 relative overflow-hidden p-6 rounded-xl shadow-lg`}>
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-xl font-bold font-cinzel tracking-wide text-[#e0d6b9] drop-shadow-lg">{card.title}</h3>
         <TypeIcon type={card.type} />

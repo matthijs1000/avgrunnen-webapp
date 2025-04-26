@@ -1,0 +1,27 @@
+type,act,text
+relationship,1,Vis det positive i relasjonen
+relationship,1,Introduser eksternt press
+relationship,1,Avslør en hemmelighet
+relationship,1,Gjenopplev et felles minne
+relationship,2,En gammel konflikt blusser opp.
+relationship,2,Noen avslører en hemmelighet som endrer alt.
+relationship,2,En gammel konflikt blusser opp.
+relationship,2,Noen avslører en hemmelighet som endrer alt.
+relationship,3,En relasjon settes på prøve av ytre press.
+relationship,3,Noen må velge mellom lojalitet og sannhet.
+relationship,3,Noen må velge mellom lojalitet og sannhet.
+relationship,I veien for Endringen,Sett birollen i hensynsløs fare
+relationship,I veien for Endringen,Press relasjonen med løgn
+goal,1,Vis hva som hindrer rollen
+goal,1,Vis hvordan rollen valgte målet
+goal,1,Sett målet i fare
+goal,1,Gi en nedtur, et skritt tilbake
+goal,1,Gi en mulighet til å komme et godt stykke nærmere målet
+goal,2,Gi en dyr/farlig mulighet til å faktisk nå målet
+goal,2,Frist rollen til å droppe målet
+goal,2,Gi målet en konsekvens
+goal,3,La rollen nå målet
+goal,3,La rollen feile
+goal,3,Spill ut konsekvenser eller utfall
+goal,I veien for Endringen,Sett målet i hensynsløs fare
+goal,I veien for Endringen,Blokker med enorm makt

@@ -11,7 +11,14 @@ export function DramaCardItem({ card, isPlaying, onPreview, onDiscard }) {
     <li className="bg-white rounded-lg shadow p-4">
       <h3 className="text-lg font-bold mb-2">{card.title}</h3>
       {card.text && (
-        <p className="text-sm text-gray-600 mb-3">{card.text}</p>
+        <p className="text-sm text-gray-600 mb-3">
+          {card.text.split(/\n/).map((line, idx, arr) => (
+            <React.Fragment key={idx}>
+              {line}
+              {idx < arr.length - 1 && <br />}
+            </React.Fragment>
+          ))}
+        </p>
       )}
       {card.type && (
         <p className="text-sm text-gray-500 mb-3">Type: {card.type}</p>

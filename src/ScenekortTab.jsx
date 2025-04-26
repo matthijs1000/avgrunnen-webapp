@@ -11,6 +11,8 @@ import { fetchSceneCards } from './utils/sheetsConfig';
 import { getCardPlayerId, isCardOwnedByPlayer, isCardAvailableToDraw, normalizePlayerId, isCardPlayable } from './components/scenekort-tab/helpers';
 import { SceneCardItem } from './components/scenekort-tab/scene-card-item';
 import { DeckStatusBox } from './components/scenekort-tab/deck-status-box';
+import Director from './components/Director';
+import { getForingerByTypeAndAct } from './utils/foringer';
 
 const HAND_SIZE = 3;
 
@@ -29,9 +31,15 @@ export default function ScenekortTab({ gameState }) {
   const [playerCount, setPlayerCount] = useState(0);
   const [playerCharacters, setPlayerCharacters] = useState({});
   const [actioningCards, setActioningCards] = useState(new Set());
+  const [showDirector, setShowDirector] = useState(false);
+  const [previewCard, setPreviewCard] = useState(null);
+  const [showForinger, setShowForinger] = useState(false);
+  const [foringerList, setForingerList] = useState({ acts: { 1: [], 2: [], 3: [] }, veien: [] });
 
   const playerName = localStorage.getItem('name');
   const gameId = localStorage.getItem('gameId');
+
+  const currentAct = gameState?.sceneCards?.currentAct || 1;
 
   // Update deck status whenever cards or hands change
   const updateDeckStatus = (data) => {
@@ -44,20 +52,23 @@ export default function ScenekortTab({ gameState }) {
       .filter(([id]) => id.toLowerCase() !== playerName.toLowerCase())
       .flatMap(([, cards]) => cards);
     const activeCardIds = new Set(data.activeCards || []);
+    const currentPlayers = new Set(Object.keys(gameState?.players || {}).map(p => p.toLowerCase()));
     
     // Count cards in deck (not in any hand AND not played AND active in current act)
     const cardsInDeck = allCards.filter(card => {
       const notInHand = !allHandCards.some(handCard => handCard.id === card.id);
       const notPlayed = !playedCards.some(p => p.card.id === card.id);
       const isActive = activeCardIds.has(card.id);
-      return notInHand && notPlayed && isActive;
+      // Only available if unassigned or assigned to a current player
+      const assignedToCurrent = !card.playerId || currentPlayers.has(card.playerId.toLowerCase());
+      return notInHand && notPlayed && isActive && assignedToCurrent;
     });
 
-    // Count available cards (not in any hand AND not played AND active AND either unowned or owned by current player)
+    // Count available cards (not in any hand AND not played AND active AND either unowned or owned by ANYONE EXCEPT current player)
     const availableCards = cardsInDeck.filter(card => {
       const cardPlayerId = getCardPlayerId(card)?.toLowerCase();
       const currentPlayerName = playerName.toLowerCase();
-      return !cardPlayerId || cardPlayerId === currentPlayerName;
+      return (!cardPlayerId || cardPlayerId !== currentPlayerName);
     });
 
     setDeckStatus({
@@ -229,19 +240,18 @@ export default function ScenekortTab({ gameState }) {
               console.log('🎭 Played cards:', [...allPlayedCardIds]);
               
               // Find available cards (not in any hand AND not played)
+              const currentPlayers = new Set(Object.keys(gameState?.players || {}).map(p => p.toLowerCase()));
               const availableCards = (data.cards || []).filter(card => {
                 const notInHand = !allHandCardIds.has(card.id);
                 const notPlayed = !allPlayedCardIds.has(card.id);
                 const isAvailable = isCardAvailableToDraw(card, playerName, allPlayedCardIds, allHandCards);
-                
+                const assignedToCurrent = !card.playerId || currentPlayers.has(card.playerId.toLowerCase());
                 if (!notInHand) console.log(`❌ Card ${card.id} is in a hand`);
                 if (!notPlayed) console.log(`❌ Card ${card.id} has been played`);
                 if (!isAvailable) console.log(`❌ Card ${card.id} is not available to draw (${card.title}) - owned by ${card.playerId || 'none'}`);
-                
-                return notInHand && notPlayed && isAvailable;
+                if (!assignedToCurrent) console.log(`❌ Card ${card.id} is assigned to a player not in the game (${card.playerId})`);
+                return notInHand && notPlayed && isAvailable && assignedToCurrent;
               });
-
-              
 
               if (availableCards.length === 0) {
                 
@@ -339,13 +349,17 @@ export default function ScenekortTab({ gameState }) {
 
         
         // Find available cards (not in any hand AND not played)
+        const currentPlayers = new Set(Object.keys(gameState?.players || {}).map(p => p.toLowerCase()));
         const availableCards = allCards.filter(card => {
           const notInHand = !handCardIds.has(card.id);
           const notPlayed = !playedCardIds.has(card.id);
-          const isAvailable = isCardAvailableToDraw(card, playerName, playedCardIds, allHandCards, activeCardIds);
-          
-          
-          return notInHand && notPlayed && isAvailable;
+          const isAvailable = isCardAvailableToDraw(card, playerName, playedCardIds, allHandCards);
+          const assignedToCurrent = !card.playerId || currentPlayers.has(card.playerId.toLowerCase());
+          if (!notInHand) console.log(`❌ Card ${card.id} is in a hand`);
+          if (!notPlayed) console.log(`❌ Card ${card.id} has been played`);
+          if (!isAvailable) console.log(`❌ Card ${card.id} is not available to draw (${card.title}) - owned by ${card.playerId || 'none'}`);
+          if (!assignedToCurrent) console.log(`❌ Card ${card.id} is assigned to a player not in the game (${card.playerId})`);
+          return notInHand && notPlayed && isAvailable && assignedToCurrent;
         });
 
         console.log(`📊 Available cards (${availableCards.length}):`, availableCards.map(c => c.id));
@@ -481,6 +495,7 @@ export default function ScenekortTab({ gameState }) {
         next.delete(cardId);
         return next;
       });
+      setPreviewCard(null);
     }
   };
 
@@ -661,8 +676,29 @@ export default function ScenekortTab({ gameState }) {
               <p className="text-sm text-gray-500 mt-1">Venter på din tur som regissør...</p>
             )}
           </div>
+          <button
+            className="ml-4 px-4 py-2 bg-blue-700 rounded text-white hover:bg-blue-800"
+            onClick={() => setShowDirector(true)}
+          >
+            Regissør
+          </button>
         </div>
       </div>
+
+      {showDirector && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
+          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full relative">
+            <button
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl font-bold"
+              onClick={() => setShowDirector(false)}
+              aria-label="Lukk"
+            >
+              ×
+            </button>
+            <Director />
+          </div>
+        </div>
+      )}
 
       <ul className="space-y-4 mb-8">
         {hand.map((card) => (
@@ -672,12 +708,110 @@ export default function ScenekortTab({ gameState }) {
             playerCharacters={playerCharacters}
             isPlaying={actioningCards.has(card.id)}
             canPlay={gameState?.gameStarted && gameState.currentDirector === playerName}
-            onPlay={playCard}
+            onPlay={() => {
+              if (gameState?.gameStarted && gameState.currentDirector === playerName) {
+                setPreviewCard(card);
+              }
+            }}
           />
         ))}
       </ul>
 
-      <DeckStatusBox deckStatus={deckStatus} currentAct={gameState?.sceneCards?.currentAct || 1} />
+      <DeckStatusBox deckStatus={deckStatus} currentAct={currentAct} />
+
+      {previewCard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
+          <div className="bg-white rounded-lg shadow-lg max-w-lg w-full p-8 relative">
+            <button
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl font-bold"
+              onClick={() => setPreviewCard(null)}
+              aria-label="Lukk"
+            >
+              ×
+            </button>
+            <div className="mb-6">
+              <h3 className="text-2xl font-bold mb-2">{previewCard.title}</h3>
+              {previewCard.text && (
+                <p className="text-lg text-gray-700 mb-6 whitespace-pre-line">{previewCard.text}</p>
+              )}
+              {previewCard.type && (
+                <p className="text-base text-gray-500 mb-6">Type: {previewCard.type}</p>
+              )}
+              {previewCard.playerId && (
+                <p className="text-base text-gray-500 mb-6">Rolle: {playerCharacters[previewCard.playerId.toLowerCase()]}</p>
+              )}
+              {(previewCard.type && ['relationship', 'goal'].includes(previewCard.type.toLowerCase())) && (
+                <button
+                  className="px-4 py-2 bg-green-700 text-white rounded hover:bg-green-800 mb-4"
+                  onClick={async () => {
+                    const foringer = await getForingerByTypeAndAct(previewCard.type, currentAct, true);
+                    setForingerList(foringer);
+                    setShowForinger(true);
+                  }}
+                >
+                  Føringer
+                </button>
+              )}
+            </div>
+            <div className="flex justify-center gap-4 mt-6">
+              <button
+                onClick={() => setPreviewCard(null)}
+                className="px-6 py-2 rounded bg-gray-300 text-gray-800 hover:bg-gray-400"
+              >
+                Angre
+              </button>
+              <button
+                onClick={() => playCard(previewCard.id)}
+                className="px-6 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+                disabled={actioningCards.has(previewCard.id)}
+              >
+                {actioningCards.has(previewCard.id) ? 'Spiller...' : 'Scenen er ferdig'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showForinger && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
+          <div className="bg-white rounded-lg shadow-lg max-w-xl w-full p-8 relative overflow-y-auto max-h-[90vh]">
+            <button
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl font-bold"
+              onClick={() => setShowForinger(false)}
+              aria-label="Lukk"
+            >
+              ×
+            </button>
+            <h2 className="text-xl font-bold mb-4">Føringer for {previewCard?.type}</h2>
+            <div className="space-y-6">
+              {[1,2,3].map(actNum => (
+                <div key={actNum}>
+                  <h3 className={`font-semibold mb-2 ${currentAct === actNum ? 'text-blue-700' : 'text-gray-700'}`}>Akt {actNum}{currentAct === actNum ? ' (nåværende)' : ''}</h3>
+                  <ul className="list-disc ml-6">
+                    {foringerList.acts[actNum]?.length > 0 ? (
+                      foringerList.acts[actNum].map((f, i) => (
+                        <li key={i}>{f}</li>
+                      ))
+                    ) : (
+                      <li className="text-gray-400 italic">Ingen føringer for denne akt</li>
+                    )}
+                  </ul>
+                </div>
+              ))}
+              {foringerList.veien.length > 0 && (
+                <div>
+                  <h3 className="font-semibold mb-2 text-red-700">I veien for Endringen</h3>
+                  <ul className="list-disc ml-6">
+                    {foringerList.veien.map((f, i) => (
+                      <li key={i}>{f}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

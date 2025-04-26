@@ -78,15 +78,17 @@ export default function DramakortTab({ gameState }) {
     if (!gameState || !playerName) return;
 
     const playerHand = gameState.dramaCards?.hands?.[playerName] || [];
-    console.log('📥 Current drama cards hand:', playerHand.length);
+    console.log('[DramakortTab] playerName:', playerName);
+    console.log('[DramakortTab] gameState.dramaCards.hands:', gameState.dramaCards?.hands);
+    console.log('[DramakortTab] playerHand:', playerHand);
     setHand(playerHand);
+    console.log('[DramakortTab] hand after setHand:', playerHand);
 
     // Auto-fill hand if needed
     if (playerHand.length < HAND_SIZE) {
       console.log('🎴 Hand needs', HAND_SIZE - playerHand.length, 'more cards, filling...');
       fillHand();
     } else if (!Array.isArray(playerHand) || playerHand.length === 0) {
-      // Fallback: try to fill hand again after a short delay, in case registration just happened
       setTimeout(() => fillHand(), 800);
     }
   }, [gameState, playerName]);

@@ -192,6 +192,16 @@ export default function AdminTab({ gameState }) {
   return (
     <div className="p-4">
       <h2 className="text-xl font-bold mb-4">Admin</h2>
+      <div className="mb-4">
+        <a
+          href="https://docs.google.com/document/d/1DzGr01yskVG8kfF8ubtbCikPLGAiUiXLyd2faI6u6gY/edit"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 underline hover:text-blue-800"
+        >
+          Les reglene her
+        </a>
+      </div>
       <ThemeSwitcher />
       
       {/* Act Selection */}

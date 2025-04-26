@@ -174,9 +174,14 @@ export default function AvgrunnenApp() {
         };
       });
 
+      // Log player object after registration
+      const playerSnap = await get(playerRef);
+      console.log('[App] Player object after registration:', playerSnap.val());
+
       // Initialize hands if needed
       await runTransaction(ref(db, `games/${gameId}`), (game) => {
         if (!game) return game;
+
         // Ensure drama cards hand exists
         if (!game.dramaCards?.hands?.[name]) {
           game.dramaCards = {
@@ -187,6 +192,7 @@ export default function AvgrunnenApp() {
             }
           };
         }
+
         // Ensure scene cards hand exists
         if (!game.sceneCards?.hands?.[name]) {
           game.sceneCards = {
@@ -197,8 +203,15 @@ export default function AvgrunnenApp() {
             }
           };
         }
+
         return game;
       });
+
+      // Log hands after initialization
+      const handsSnap = await get(ref(db, `games/${gameId}/dramaCards/hands`));
+      console.log('[App] Drama hands after initialization:', handsSnap.val());
+      const sceneHandsSnap = await get(ref(db, `games/${gameId}/sceneCards/hands`));
+      console.log('[App] Scene hands after initialization:', sceneHandsSnap.val());
       
       // Set registration status after successful registration
       setIsPlayerRegistered(true);
@@ -323,9 +336,6 @@ export default function AvgrunnenApp() {
                 </div>
               )}
             </TabsContent>
-            <TabsContent value="regler" className="mt-4">
-              <RulesTab />
-            </TabsContent>
             <TabsContent value="roller" className="mt-4">
               {isPlayerRegistered ? (
                 <RollerTab gameState={gameState} />
@@ -336,18 +346,13 @@ export default function AvgrunnenApp() {
                 </div>
               )}
             </TabsContent>
-            <TabsContent value="regissor" className="mt-4">
-              <RegissorTab />
-            </TabsContent>
             <TabsContent value="admin" className="mt-4">
               <AdminTab gameState={gameState} />
             </TabsContent>
             <TabsList className="fixed bottom-0 left-0 right-0 flex justify-around bg-white border-t shadow-md">
               <TabsTrigger value="dramakort">Dramakort</TabsTrigger>
               <TabsTrigger value="scenekort">Scenekort</TabsTrigger>
-              <TabsTrigger value="regler">Regler</TabsTrigger>
               <TabsTrigger value="roller">Roller</TabsTrigger>
-              <TabsTrigger value="regissor">Regissør</TabsTrigger>
               <TabsTrigger value="admin">Admin</TabsTrigger>
             </TabsList>
           </Tabs>
