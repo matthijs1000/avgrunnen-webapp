@@ -14,6 +14,7 @@ import { db } from './firebaseConfig';
 import { ref, get, set, onValue, runTransaction } from 'firebase/database';
 import { fetchSceneCards, fetchDramaCards, testSheetAccess } from './utils/sheetsConfig';
 import DramakortTab from "./DramakortTab";
+import { ThemeProvider } from './ThemeContext';
 
 export default function AvgrunnenApp() {
   const [ready, setReady] = useState(false);
@@ -306,69 +307,71 @@ export default function AvgrunnenApp() {
   }
 
   return (
-    <div className="min-h-screen bg-[#e8f0ea] text-gray-900 font-sans pb-20">
-      {!ready ? (
-        <NameAndGame onSubmit={handleSubmit} />
-      ) : (
-        <>
-          <GameStatusBar gameState={gameState} />
-          <div className="w-full max-w-md mx-auto p-4 mt-12">
-            <div className="mb-6 text-center">
-              <h1 className="text-xl font-semibold text-gray-800">
-                Velkommen, {localStorage.getItem("name")}
-              </h1>
+    <ThemeProvider>
+      <div className="min-h-screen font-sans pb-20" style={{ background: 'var(--bg-main)', color: 'var(--text-main)' }}>
+        {!ready ? (
+          <NameAndGame onSubmit={handleSubmit} />
+        ) : (
+          <>
+            <GameStatusBar gameState={gameState} />
+            <div className="w-full max-w-md mx-auto p-4 mt-12">
+              <div className="mb-6 text-center">
+                <h1 className="text-xl font-semibold text-gray-800">
+                  Velkommen, {localStorage.getItem("name")}
+                </h1>
+              </div>
+              <Tabs defaultValue="dramakort" className="w-full">
+                <TabsContent value="dramakort">
+                  <DramakortTab gameState={gameState} />
+                </TabsContent>
+
+                <TabsContent value="scenekort" className="mt-4">
+                  {isPlayerRegistered ? (
+                    <ScenekortTab gameState={gameState} />
+                  ) : (
+                    <div className="text-center p-4">
+                      <p>Venter på spillerregistrering...</p>
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto mt-2"></div>
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="regler" className="mt-4">
+                  <RulesTab />
+                </TabsContent>
+
+                <TabsContent value="roller" className="mt-4">
+                  {isPlayerRegistered ? (
+                    <RollerTab gameState={gameState} />
+                  ) : (
+                    <div className="text-center p-4">
+                      <p>Venter på spillerregistrering...</p>
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto mt-2"></div>
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="regissor" className="mt-4">
+                  <RegissorTab />
+                </TabsContent>
+
+                <TabsContent value="admin" className="mt-4">
+                  <AdminTab gameState={gameState} />
+                </TabsContent>
+
+                <TabsList className="fixed bottom-0 left-0 right-0 flex justify-around bg-white border-t shadow-md">
+                  <TabsTrigger value="dramakort">Dramakort</TabsTrigger>
+                  <TabsTrigger value="scenekort">Scenekort</TabsTrigger>
+                  <TabsTrigger value="regler">Regler</TabsTrigger>
+                  <TabsTrigger value="roller">Roller</TabsTrigger>
+                  <TabsTrigger value="regissor">Regissør</TabsTrigger>
+                  <TabsTrigger value="admin">Admin</TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
-            <Tabs defaultValue="dramakort" className="w-full">
-              <TabsContent value="dramakort">
-                <DramakortTab gameState={gameState} />
-              </TabsContent>
-
-              <TabsContent value="scenekort" className="mt-4">
-                {isPlayerRegistered ? (
-                  <ScenekortTab gameState={gameState} />
-                ) : (
-                  <div className="text-center p-4">
-                    <p>Venter på spillerregistrering...</p>
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto mt-2"></div>
-                  </div>
-                )}
-              </TabsContent>
-
-              <TabsContent value="regler" className="mt-4">
-                <RulesTab />
-              </TabsContent>
-
-              <TabsContent value="roller" className="mt-4">
-                {isPlayerRegistered ? (
-                  <RollerTab gameState={gameState} />
-                ) : (
-                  <div className="text-center p-4">
-                    <p>Venter på spillerregistrering...</p>
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto mt-2"></div>
-                  </div>
-                )}
-              </TabsContent>
-
-              <TabsContent value="regissor" className="mt-4">
-                <RegissorTab />
-              </TabsContent>
-
-              <TabsContent value="admin" className="mt-4">
-                <AdminTab gameState={gameState} />
-              </TabsContent>
-
-              <TabsList className="fixed bottom-0 left-0 right-0 flex justify-around bg-white border-t shadow-md">
-                <TabsTrigger value="dramakort">Dramakort</TabsTrigger>
-                <TabsTrigger value="scenekort">Scenekort</TabsTrigger>
-                <TabsTrigger value="regler">Regler</TabsTrigger>
-                <TabsTrigger value="roller">Roller</TabsTrigger>
-                <TabsTrigger value="regissor">Regissør</TabsTrigger>
-                <TabsTrigger value="admin">Admin</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-        </>
-      )}
-    </div>
+          </>
+        )}
+      </div>
+    </ThemeProvider>
   );
 }

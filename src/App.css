@@ -1,3 +1,95 @@
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;700&family=Roboto+Mono:wght@400;700&family=Montserrat:wght@400;700&display=swap');
+
+:root {
+  --font-heading: 'Cinzel', serif;
+  --font-body: 'EB Garamond', serif;
+}
+
+.theme-lovecraft {
+  --bg-main: #18181b;
+  --bg-card: linear-gradient(135deg, #23232a 80%, #2d2d36 100%);
+  --card-border: #3b2f2f;
+  --text-main: #e7e5e4;
+  --text-heading: #e0d6b9;
+  --accent: #a21caf;
+  --font-heading: 'Cinzel', serif;
+  --font-body: 'EB Garamond', serif;
+  --texture: url('https://www.transparenttextures.com/patterns/old-mat.png');
+}
+.theme-russia-1984 {
+  --bg-main: #23272e;
+  --bg-card: linear-gradient(135deg, #2d323a 80%, #3a3f47 100%);
+  --card-border: #a83232;
+  --text-main: #e0e5e9;
+  --text-heading: #e5bcbc;
+  --accent: #b91c1c;
+  --font-heading: 'Roboto Mono', monospace;
+  --font-body: 'Roboto Mono', monospace;
+  --texture: url('https://www.transparenttextures.com/patterns/concrete-wall.png');
+}
+.theme-norway-1946 {
+  --bg-main: #e5e7eb;
+  --bg-card: linear-gradient(135deg, #f3f4f6 80%, #d1d5db 100%);
+  --card-border: #4b5563;
+  --text-main: #23272e;
+  --text-heading: #1e293b;
+  --accent: #256d1b;
+  --font-heading: 'Cinzel', serif;
+  --font-body: 'EB Garamond', serif;
+  --texture: url('https://www.transparenttextures.com/patterns/wood-pattern.png');
+}
+.theme-colombia-1972 {
+  --bg-main: #fef9c3;
+  --bg-card: linear-gradient(135deg, #fef08a 80%, #fbbf24 100%);
+  --card-border: #eab308;
+  --text-main: #3a2c0a;
+  --text-heading: #b45309;
+  --accent: #16a34a;
+  --font-heading: 'Montserrat', sans-serif;
+  --font-body: 'Montserrat', sans-serif;
+  --texture: url('https://www.transparenttextures.com/patterns/diamond-upholstery.png');
+}
+
+body, #root {
+  background: var(--bg-main) var(--texture);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  margin: 0;
+  position: relative;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  letter-spacing: 0.04em;
+  color: var(--text-heading);
+}
+
+.card, .lovecraft-card {
+  background: var(--bg-card);
+  background-blend-mode: multiply;
+  border: 1.5px solid var(--card-border);
+  box-shadow: 0 4px 32px 0 rgba(40, 20, 60, 0.25), 0 0 0 8px rgba(30, 20, 40, 0.08) inset;
+  border-radius: 0.75rem;
+  padding: 2em;
+  font-family: var(--font-body);
+}
+
+/* Vignette effect */
+body::before {
+  content: '';
+  position: fixed;
+  z-index: 0;
+  pointer-events: none;
+  top: 0; left: 0; right: 0; bottom: 0;
+  box-shadow: 0 0 200px 80px #0e0e0e inset;
+}
+
+/* Make sure all text is readable */
+.card, .lovecraft-card, .card * {
+  color: var(--text-main) !important;
+}
+
 #root {
   max-width: 1280px;
   margin: 0 auto;
@@ -31,10 +123,6 @@
   a:nth-of-type(2) .logo {
     animation: logo-spin infinite 20s linear;
   }
-}
-
-.card {
-  padding: 2em;
 }
 
 .read-the-docs {

@@ -65,5 +65,15 @@ export default {
 	  },
 	},
 	plugins: [],
+	safelist: [
+	  'border-l-4',
+	  'border-pink-400', 'bg-pink-50',
+	  'border-yellow-400', 'bg-yellow-50',
+	  'border-purple-400', 'bg-purple-50',
+	  'border-green-400', 'bg-green-50',
+	  'border-indigo-400', 'bg-indigo-50',
+	  'border-orange-400', 'bg-orange-50',
+	  'border-gray-300', 'bg-gray-50',
+	],
   }
   

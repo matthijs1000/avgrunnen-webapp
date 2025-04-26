@@ -4,20 +4,26 @@ import React from 'react';
  * @param {string} props.type
  */
 export function TypeIcon({ type }) {
+  const base = 'h-6 w-6 drop-shadow-[0_2px_4px_rgba(20,10,40,0.5)]';
   switch (type?.toLowerCase()) {
     case 'relationship':
+      // Intertwined tentacles
       return (
-        <div className="flex items-center text-pink-400" title="Relasjonsscene">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+        <div className="flex items-center text-pink-900" title="Relasjonsscene">
+          <svg xmlns="http://www.w3.org/2000/svg" className={base} viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 21c-4-2-7-5-7-9a7 7 0 0 1 14 0c0 4-3 7-7 9z" opacity=".7"/>
+            <path d="M8 13c0-2 2-4 4-4s4 2 4 4" stroke="#a21caf" strokeWidth="1.5" fill="none"/>
           </svg>
         </div>
       );
     case 'goal':
+      // Arcane eye
       return (
-        <div className="flex items-center text-yellow-400" title="Målscene">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+        <div className="flex items-center text-yellow-900" title="Målscene">
+          <svg xmlns="http://www.w3.org/2000/svg" className={base} viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <ellipse cx="12" cy="12" rx="9" ry="6" fill="#facc15" fillOpacity="0.15" stroke="#a16207" strokeWidth="1.5"/>
+            <circle cx="12" cy="12" r="2.5" fill="#a16207" />
+            <circle cx="12" cy="12" r="1.2" fill="#fde68a" />
           </svg>
         </div>
       );
@@ -30,43 +36,52 @@ export function TypeIcon({ type }) {
         </div>
       );
     case 'development':
+      // Ancient rune
       return (
-        <div className="flex items-center text-green-400" title="Utviklingsscene">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+        <div className="flex items-center text-green-900" title="Utviklingsscene">
+          <svg xmlns="http://www.w3.org/2000/svg" className={base} viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M12 3v18M6 9l6 6 6-6" stroke="#166534" strokeWidth="1.5" fill="none"/>
+            <circle cx="12" cy="12" r="10" stroke="#166534" strokeWidth="1" fill="#bbf7d0" fillOpacity="0.08"/>
           </svg>
         </div>
       );
     case 'exploration':
+      // Alien star
       return (
-        <div className="flex items-center text-purple-400" title="Utforskningsscene">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M9 9a2 2 0 114 0 2 2 0 01-4 0z" />
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a4 4 0 00-3.446 6.032l-2.261 2.26a1 1 0 101.414 1.415l2.261-2.261A4 4 0 1011 5z" clipRule="evenodd" />
+        <div className="flex items-center text-purple-900" title="Utforskningsscene">
+          <svg xmlns="http://www.w3.org/2000/svg" className={base} viewBox="0 0 24 24" fill="none">
+            <polygon points="12,2 15,11 24,11 17,17 19,24 12,20 5,24 7,17 0,11 9,11" fill="#a78bfa" fillOpacity="0.18" stroke="#6d28d9" strokeWidth="1.2"/>
+            <circle cx="12" cy="12" r="2" fill="#6d28d9" />
           </svg>
         </div>
       );
     case 'plan':
+      // Occult triangle
       return (
-        <div className="flex items-center text-orange-400" title="Planleggingsscene">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm11 1H6v8l4-2 4 2V6z" clipRule="evenodd" />
+        <div className="flex items-center text-orange-900" title="Planleggingsscene">
+          <svg xmlns="http://www.w3.org/2000/svg" className={base} viewBox="0 0 24 24" fill="none">
+            <polygon points="12,4 22,20 2,20" fill="#fdba74" fillOpacity="0.13" stroke="#ea580c" strokeWidth="1.2"/>
+            <circle cx="12" cy="15" r="2" fill="#ea580c" />
           </svg>
         </div>
       );
     case 'change':
+      // Tentacled spiral
       return (
-        <div className="flex items-center text-indigo-400" title="Endringsscene">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+        <div className="flex items-center text-indigo-900" title="Endringsscene">
+          <svg xmlns="http://www.w3.org/2000/svg" className={base} viewBox="0 0 24 24" fill="none">
+            <path d="M12 12c4-4 8 4 4 8s-12 0-8-8 8-8 8-8" stroke="#3730a3" strokeWidth="1.5" fill="none"/>
+            <circle cx="12" cy="12" r="2" fill="#6366f1" fillOpacity="0.18" />
           </svg>
         </div>
       );
     default:
+      // Unknowable glyph
       return (
-        <div className="flex items-center text-gray-400" title="Annen type scene">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+        <div className="flex items-center text-gray-700" title="Annen type scene">
+          <svg xmlns="http://www.w3.org/2000/svg" className={base} viewBox="0 0 24 24" fill="none">
+            <path d="M4 20c4-8 12-8 16 0M4 4c4 8 12 8 16 0" stroke="#44403c" strokeWidth="1.2" fill="none"/>
+            <circle cx="12" cy="12" r="2" fill="#a3a3a3" fillOpacity="0.18" />
           </svg>
         </div>
       );

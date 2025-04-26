@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
 import { ref, runTransaction, get } from 'firebase/database';
 import { fetchSceneCards } from './utils/sheetsConfig';
+import { ThemeSwitcher } from './components/ui/ThemeSwitcher';
 
 // Add helper function to filter cards by act
 const filterCardsByAct = (cards, actNumber) => {
@@ -181,6 +182,7 @@ export default function AdminTab({ gameState }) {
   return (
     <div className="p-4">
       <h2 className="text-xl font-bold mb-4">Admin</h2>
+      <ThemeSwitcher />
       
       {/* Act Selection */}
       <div className="mb-6">
