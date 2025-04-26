@@ -34,9 +34,7 @@ export default function KortTabFirebase({ gameState }) {
   const gameId = localStorage.getItem('gameId');
   const character = localStorage.getItem('character');
 
-  console.log('🧠 Spiller:', playerName);
-  console.log('🧠 Aktiv gameId:', gameId);
-
+  
   // Add player registration check
   useEffect(() => {
     if (!playerName || !gameId) return;
@@ -204,17 +202,12 @@ export default function KortTabFirebase({ gameState }) {
         }
 
         const allCards = game.dramaCards.cards || [];
-        console.log('📊 Total cards in deck:', allCards.length);
-        console.log('👥 Current hands:', game.dramaCards.hands);
         
         // Get current hand
         const currentHand = game.dramaCards.hands[playerName];
-        console.log('✋ Current hand:', currentHand);
         const cardsNeeded = HAND_SIZE - currentHand.length;
-        console.log('🎴 Cards needed:', cardsNeeded);
-
+        
         if (cardsNeeded <= 0) {
-          console.log('✋ Hand is already full');
           return game;
         }
 
@@ -251,7 +244,7 @@ export default function KortTabFirebase({ gameState }) {
         console.log('✅ Updated hand:', game.dramaCards.hands[playerName]);
         return game;
       });
-      console.log('✨ fillHand operation completed successfully');
+      
     } catch (err) {
       console.error('❌ Failed to fill hand:', err);
       setError('Kunne ikke fylle hånden. Prøv igjen.');
@@ -269,17 +262,62 @@ export default function KortTabFirebase({ gameState }) {
         
         if (!playedCard) return game;
 
+        // Create a deep copy of the game state to modify
+        const updatedGame = JSON.parse(JSON.stringify(game));
+
         // Remove card from hand
-        game.dramaCards.hands[playerName] = currentHand.filter(c => c.id !== cardId);
+        updatedGame.dramaCards.hands[playerName] = currentHand.filter(c => c.id !== cardId);
 
-        // Add to played cards history
-        game.dramaCards.played = game.dramaCards.played || {};
-        game.dramaCards.played[Date.now()] = {
+        // Initialize played as an array if it doesn't exist or is an object
+        if (!updatedGame.dramaCards.played || !Array.isArray(updatedGame.dramaCards.played)) {
+          // If it's an object, convert it to an array
+          if (updatedGame.dramaCards.played && typeof updatedGame.dramaCards.played === 'object') {
+            updatedGame.dramaCards.played = Object.values(updatedGame.dramaCards.played);
+          } else {
+            updatedGame.dramaCards.played = [];
+          }
+        }
+
+        // Add to played history
+        const timestamp = Date.now();
+        updatedGame.dramaCards.played.push({
           playerId: playerName,
-          card: playedCard
-        };
+          card: playedCard,
+          timestamp
+        });
 
-        return game;
+        // Update current turn's drama cards history
+        if (updatedGame.turnHistory && updatedGame.turnHistory.length > 0) {
+          const currentTurn = updatedGame.turnHistory[updatedGame.turnHistory.length - 1];
+          console.log('📝 Adding played drama card to turn:', currentTurn.turn);
+          
+          // Initialize arrays if they don't exist
+          if (!currentTurn.dramaCards) {
+            currentTurn.dramaCards = { played: [], discarded: [] };
+          }
+          if (!Array.isArray(currentTurn.dramaCards.played)) {
+            currentTurn.dramaCards.played = [];
+          }
+          
+          // Ensure all required properties exist before adding to turn history
+          const turnHistoryCard = {
+            id: playedCard.id || '',
+            title: playedCard.title || '',
+            type: playedCard.type || 'drama', // Default to 'drama' if type is missing
+            playedBy: playerName,
+            timestamp
+          };
+          
+          currentTurn.dramaCards.played.push(turnHistoryCard);
+          
+          console.log('✅ Updated turn history:', {
+            turn: currentTurn.turn,
+            dramaCardsPlayed: currentTurn.dramaCards.played.length,
+            lastCard: turnHistoryCard // Log the card being added for verification
+          });
+        }
+
+        return updatedGame;
       });
 
       // Draw a new card

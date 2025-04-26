@@ -9,6 +9,7 @@ import RegissorTab from "./RegissorTab";
 import ScenekortTab from "./ScenekortTab";
 import RollerTab from "./RollerTab";
 import AdminTab from './AdminTab';
+import { GameStatusBar } from './components/ui/GameStatusBar';
 import { db } from './firebaseConfig';
 import { ref, get, set, onValue, runTransaction } from 'firebase/database';
 import { fetchSceneCards, fetchDramaCards, testSheetAccess } from './utils/sheetsConfig';
@@ -28,9 +29,7 @@ export default function AvgrunnenApp() {
       console.log('🎲 Starting game initialization...');
       
       // Test sheet access first
-      console.log('🔍 Testing sheet accessibility...');
       const sheetTest = await testSheetAccess();
-      console.log('📊 Sheet test results:', sheetTest);
       
       if (sheetTest.error) {
         throw new Error(`Sheet access test failed: ${sheetTest.error}`);
@@ -55,21 +54,15 @@ export default function AvgrunnenApp() {
       if (!gameSnap.exists()) {
         console.log('🆕 Creating new game...');
         // Initialize drama cards
-        console.log('🎭 Fetching drama cards...');
         const dramaCards = await fetchDramaCards();
-        console.log('🎭 Fetched drama cards:', dramaCards);
         if (dramaCards.length === 0) throw new Error('No drama cards found');
-        console.log('📥 Fetched drama cards:', dramaCards.length);
         
         // Initialize scene cards
-        console.log('🎬 Fetching scene cards...');
         const allSceneCards = await fetchSceneCards();
-        console.log('🎬 Fetched scene cards:', allSceneCards);
         if (allSceneCards.length === 0) throw new Error('No scene cards found');
         
         // Filter for Act 1 cards
         const actOneCards = filterCardsByAct(allSceneCards, 1);
-        console.log('🎬 Act 1 scene cards:', actOneCards.length);
         
         if (actOneCards.length === 0) throw new Error('No Act 1 cards found');
         
@@ -81,34 +74,34 @@ export default function AvgrunnenApp() {
             played: {}
           },
           sceneCards: {
-            cards: allSceneCards, // Store all cards
-            activeCards: actOneCards.map(card => card.id), // Store active cards for current act
+            cards: allSceneCards,
+            activeCards: actOneCards.map(card => card.id),
             hands: {},
             played: [],
-            currentAct: 1 // Start with Act 1
+            currentAct: 1
           },
-          players: {}
+          players: {},
+          currentTurn: 1,
+          currentDirector: null,
+          turnHistory: []
         };
         
         console.log('💾 Setting initial game state:', initialState);
         await set(gameRef, initialState);
         console.log('✅ Game initialized successfully');
       } else {
-        // If game exists but needs act structure
+        // If game exists but needs act structure or turn tracking
         const game = gameSnap.val();
-        if (game.sceneCards && !game.sceneCards.activeCards) {
-          console.log('🔄 Adding act structure to existing game...');
-          await runTransaction(ref(db, `games/${gameId}/sceneCards`), (data) => {
+        if (game.sceneCards && (!game.sceneCards.activeCards || !game.currentTurn)) {
+          console.log('🔄 Adding act structure and turn tracking to existing game...');
+          await runTransaction(ref(db, `games/${gameId}`), (data) => {
             if (!data) return data;
             
             // Filter for current act (default to 1 if not set)
-            const currentAct = data.currentAct || 1;
-            console.log('🎬 Current act:', currentAct);
-            console.log('📊 Total cards:', data.cards.length);
+            const currentAct = data.sceneCards?.currentAct || 1;
             
             // Filter cards for current act
-            const activeCards = filterCardsByAct(data.cards, currentAct);
-            console.log(`✨ Found ${activeCards.length} active cards for act ${currentAct}`);
+            const activeCards = filterCardsByAct(data.sceneCards?.cards || [], currentAct);
             
             if (activeCards.length === 0) {
               console.warn('⚠️ No active cards found for current act!');
@@ -116,18 +109,22 @@ export default function AvgrunnenApp() {
             
             return {
               ...data,
-              activeCards: activeCards.map(card => card.id),
-              currentAct
+              sceneCards: {
+                ...data.sceneCards,
+                activeCards: activeCards.map(card => card.id),
+                currentAct
+              },
+              currentTurn: data.currentTurn || 1,
+              currentDirector: data.currentDirector || null,
+              turnHistory: data.turnHistory || []
             };
           });
         }
       }
 
       // Then register player
-      console.log('👤 Registering player:', name);
       const playerRef = ref(db, `games/${gameId}/players/${name}`);
       await runTransaction(playerRef, (currentData) => {
-        console.log('👤 Current player data:', currentData);
         if (currentData === null) {
           return {
             character: character || name,
@@ -141,17 +138,13 @@ export default function AvgrunnenApp() {
           initialized: true
         };
       });
-      console.log('🎭 Player registration complete:', name);
 
       // Initialize hands if needed
-      console.log('🎴 Initializing player hands...');
       await runTransaction(ref(db, `games/${gameId}`), (game) => {
-        console.log('🔍 Current game state for hand initialization:', game);
         if (!game) return game;
 
         // Ensure drama cards hand exists
         if (!game.dramaCards?.hands?.[name]) {
-          console.log('🎭 Creating drama cards hand for player');
           game.dramaCards = {
             ...game.dramaCards,
             hands: {
@@ -163,7 +156,6 @@ export default function AvgrunnenApp() {
 
         // Ensure scene cards hand exists
         if (!game.sceneCards?.hands?.[name]) {
-          console.log('🎬 Creating scene cards hand for player');
           game.sceneCards = {
             ...game.sceneCards,
             hands: {
@@ -173,7 +165,6 @@ export default function AvgrunnenApp() {
           };
         }
 
-        console.log('✅ Updated game state:', game);
         return game;
       });
       
@@ -318,54 +309,64 @@ export default function AvgrunnenApp() {
       {!ready ? (
         <NameAndGame onSubmit={handleSubmit} />
       ) : (
-        <Tabs defaultValue="dramakort" className="w-full max-w-md mx-auto p-4">
-          <TabsContent value="dramakort">
-            <KortTabFirebase gameState={gameState} />
-          </TabsContent>
+        <>
+          <GameStatusBar gameState={gameState} />
+          <div className="w-full max-w-md mx-auto p-4 mt-12">
+            <div className="mb-6 text-center">
+              <h1 className="text-xl font-semibold text-gray-800">
+                Velkommen, {localStorage.getItem("name")}
+              </h1>
+            </div>
+            <Tabs defaultValue="dramakort" className="w-full">
+              <TabsContent value="dramakort">
+                <KortTabFirebase gameState={gameState} />
+              </TabsContent>
 
-          <TabsContent value="scenekort" className="mt-4">
-            {isPlayerRegistered ? (
-              <ScenekortTab gameState={gameState} />
-            ) : (
-              <div className="text-center p-4">
-                <p>Venter på spillerregistrering...</p>
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto mt-2"></div>
-              </div>
-            )}
-          </TabsContent>
+              <TabsContent value="scenekort" className="mt-4">
+                {isPlayerRegistered ? (
+                  <ScenekortTab gameState={gameState} />
+                ) : (
+                  <div className="text-center p-4">
+                    <p>Venter på spillerregistrering...</p>
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto mt-2"></div>
+                  </div>
+                )}
+              </TabsContent>
 
-          <TabsContent value="regler" className="mt-4">
-            <RulesTab />
-          </TabsContent>
+              <TabsContent value="regler" className="mt-4">
+                <RulesTab />
+              </TabsContent>
 
-          <TabsContent value="roller" className="mt-4">
-            {isPlayerRegistered ? (
-              <RollerTab gameState={gameState} />
-            ) : (
-              <div className="text-center p-4">
-                <p>Venter på spillerregistrering...</p>
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto mt-2"></div>
-              </div>
-            )}
-          </TabsContent>
+              <TabsContent value="roller" className="mt-4">
+                {isPlayerRegistered ? (
+                  <RollerTab gameState={gameState} />
+                ) : (
+                  <div className="text-center p-4">
+                    <p>Venter på spillerregistrering...</p>
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mx-auto mt-2"></div>
+                  </div>
+                )}
+              </TabsContent>
 
-          <TabsContent value="regissor" className="mt-4">
-            <RegissorTab />
-          </TabsContent>
+              <TabsContent value="regissor" className="mt-4">
+                <RegissorTab />
+              </TabsContent>
 
-          <TabsContent value="admin" className="mt-4">
-            <AdminTab />
-          </TabsContent>
+              <TabsContent value="admin" className="mt-4">
+                <AdminTab gameState={gameState} />
+              </TabsContent>
 
-          <TabsList className="fixed bottom-0 left-0 right-0 flex justify-around bg-white border-t shadow-md">
-            <TabsTrigger value="dramakort">Dramakort</TabsTrigger>
-            <TabsTrigger value="scenekort">Scenekort</TabsTrigger>
-            <TabsTrigger value="regler">Regler</TabsTrigger>
-            <TabsTrigger value="roller">Roller</TabsTrigger>
-            <TabsTrigger value="regissor">Regissør</TabsTrigger>
-            <TabsTrigger value="admin">Admin</TabsTrigger>
-          </TabsList>
-        </Tabs>
+              <TabsList className="fixed bottom-0 left-0 right-0 flex justify-around bg-white border-t shadow-md">
+                <TabsTrigger value="dramakort">Dramakort</TabsTrigger>
+                <TabsTrigger value="scenekort">Scenekort</TabsTrigger>
+                <TabsTrigger value="regler">Regler</TabsTrigger>
+                <TabsTrigger value="roller">Roller</TabsTrigger>
+                <TabsTrigger value="regissor">Regissør</TabsTrigger>
+                <TabsTrigger value="admin">Admin</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+        </>
       )}
     </div>
   );

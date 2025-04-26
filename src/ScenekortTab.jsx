@@ -8,7 +8,6 @@ import {
   onValue,
 } from 'firebase/database';
 import { fetchSceneCards } from './utils/sheetsConfig';
-import { Notification } from './components/ui/notification';
 
 const HAND_SIZE = 3;
 
@@ -28,7 +27,6 @@ const isCardOwnedByPlayer = (card, playerName) => {
 const isCardAvailableToDraw = (card, playerName, playedCards, allHandCards, activeCardIds) => {
   // First check if the card is active in the current act
   if (activeCardIds && !activeCardIds.has(card.id)) {
-    console.log(`🎴 Card ${card.id} is not active in current act`);
     return false;
   }
 
@@ -40,20 +38,9 @@ const isCardAvailableToDraw = (card, playerName, playedCards, allHandCards, acti
   const currentPlayerName = playerName.toLowerCase();
   const notInHand = !allHandCards.some(handCard => handCard.id === card.id);
   
-  console.log(`🎴 Checking availability for card ${card.id} (${card.title}):`, {
-    cardPlayerId,
-    currentPlayerName,
-    isPlayed: playedCards.has(card.id),
-    isOwnedByPlayer: cardPlayerId === currentPlayerName,
-    hasNoOwner: !cardPlayerId,
-    notInHand,
-    isActive: !activeCardIds || activeCardIds.has(card.id)
-  });
-  
   const isAvailable = !playedCards.has(card.id) && 
                      notInHand && 
                      (!cardPlayerId || cardPlayerId === currentPlayerName);
-  console.log('🎴 Card is available to draw:', isAvailable);
   return isAvailable;
 };
 
@@ -156,7 +143,6 @@ export default function ScenekortTab({ gameState }) {
   const [playerCount, setPlayerCount] = useState(0);
   const [playerCharacters, setPlayerCharacters] = useState({});
   const [actioningCards, setActioningCards] = useState(new Set());
-  const [notification, setNotification] = useState(null);
 
   const playerName = localStorage.getItem('name');
   const gameId = localStorage.getItem('gameId');
@@ -173,12 +159,6 @@ export default function ScenekortTab({ gameState }) {
       .flatMap(([, cards]) => cards);
     const activeCardIds = new Set(data.activeCards || []);
     
-    console.log('🎭 Deck Status Update:');
-    console.log('📊 Total cards:', allCards.length);
-    console.log('✋ Cards in hands:', allHandCards.map(c => c.id));
-    console.log('🎭 Played cards:', playedCards.map(p => p.card.id));
-    console.log('👥 Cards in other hands:', otherHandsCards.map(c => c.id));
-    
     // Count cards in deck (not in any hand AND not played AND active in current act)
     const cardsInDeck = allCards.filter(card => {
       const notInHand = !allHandCards.some(handCard => handCard.id === card.id);
@@ -193,9 +173,6 @@ export default function ScenekortTab({ gameState }) {
       const currentPlayerName = playerName.toLowerCase();
       return !cardPlayerId || cardPlayerId === currentPlayerName;
     });
-
-    console.log('🎴 Cards in deck:', cardsInDeck.map(c => c.id));
-    console.log('✨ Available cards:', availableCards.map(c => c.id));
 
     setDeckStatus({
       total: allCards.length,
@@ -378,16 +355,16 @@ export default function ScenekortTab({ gameState }) {
                 return notInHand && notPlayed && isAvailable;
               });
 
-              console.log(`📊 Available cards (${availableCards.length}):`, availableCards.map(c => c.id));
+              
 
               if (availableCards.length === 0) {
-                console.log('❌ No more cards available to draw');
+                
                 return data;
               }
 
               // Draw a random available card
               const newCard = availableCards[Math.floor(Math.random() * availableCards.length)];
-              console.log('🎴 Drew card:', newCard.id, newCard.title);
+              
               
               // Update the player's hand
               data.hands = data.hands || {};
@@ -405,7 +382,7 @@ export default function ScenekortTab({ gameState }) {
             // Refresh hand after each draw
             const newHandSnap = await get(ref(db, `games/${gameId}/sceneCards/hands/${playerName}`));
             const newHand = newHandSnap.val() || [];
-            console.log('✨ Updated hand:', newHand.map(c => c.id));
+            
             setHand(newHand);
           }
         } finally {
@@ -426,12 +403,12 @@ export default function ScenekortTab({ gameState }) {
     if (!gameState || !playerName) return;
 
     const playerHand = gameState.sceneCards?.hands?.[playerName] || [];
-    console.log('📥 Current scene cards hand:', playerHand.length);
+    
     setHand(playerHand);
 
     // Auto-fill hand if needed
     if (playerHand.length < HAND_SIZE) {
-      console.log('🎴 Hand needs', HAND_SIZE - playerHand.length, 'more cards, filling...');
+    
       fillHand();
     }
   }, [gameState, playerName]);
@@ -441,7 +418,7 @@ export default function ScenekortTab({ gameState }) {
       await runTransaction(ref(db, `games/${gameId}`), (game) => {
         if (!game || !game.sceneCards) return game;
 
-        console.log('🎴 Starting fillHand transaction');
+        
         
         // Initialize hands if it doesn't exist
         if (!game.sceneCards.hands) {
@@ -457,12 +434,9 @@ export default function ScenekortTab({ gameState }) {
         const currentHand = game.sceneCards.hands[playerName];
         const cardsNeeded = HAND_SIZE - currentHand.length;
 
-        console.log('📊 Current state:');
-        console.log('✋ Current hand:', currentHand.map(c => c.id));
-        console.log('🎴 Cards needed:', cardsNeeded);
-
+        
         if (cardsNeeded <= 0) {
-          console.log('✋ Hand is already full');
+          
           return game;
         }
 
@@ -477,20 +451,13 @@ export default function ScenekortTab({ gameState }) {
         // Get active cards for current act
         const activeCardIds = new Set(game.sceneCards.activeCards || []);
 
-        console.log('🔍 Card tracking:');
-        console.log('✋ Cards in hands:', [...handCardIds]);
-        console.log('🎭 Played cards:', [...playedCardIds]);
-        console.log('✨ Active cards:', [...activeCardIds]);
-
+        
         // Find available cards (not in any hand AND not played)
         const availableCards = allCards.filter(card => {
           const notInHand = !handCardIds.has(card.id);
           const notPlayed = !playedCardIds.has(card.id);
           const isAvailable = isCardAvailableToDraw(card, playerName, playedCardIds, allHandCards, activeCardIds);
           
-          if (!notInHand) console.log(`❌ Card ${card.id} is in a hand`);
-          if (!notPlayed) console.log(`❌ Card ${card.id} has been played`);
-          if (!isAvailable) console.log(`❌ Card ${card.id} is not available to draw (${card.title}) - owned by ${card.playerId || 'none'}`);
           
           return notInHand && notPlayed && isAvailable;
         });
@@ -524,59 +491,103 @@ export default function ScenekortTab({ gameState }) {
   };
 
   const playCard = async (cardId) => {
+    if (!gameState?.gameStarted) {
+      setError('Spillet har ikke startet ennå. Vent til admin starter spillet.');
+      return;
+    }
+
+    if (gameState.currentDirector !== playerName) {
+      setError('Bare regissøren kan spille scenekort. Vent til det er din tur.');
+      return;
+    }
+
+    console.log('🎬 Playing scene card:', cardId);
+
     setActioningCards(prev => new Set([...prev, cardId]));
     try {
-      await runTransaction(ref(db, `games/${gameId}/sceneCards`), (data) => {
-        if (!data || !data.hands?.[playerName]) return data;
+      await runTransaction(ref(db, `games/${gameId}`), (game) => {
+        if (!game?.sceneCards?.hands?.[playerName]) return game;
 
-        const currentHand = data.hands[playerName];
+        const currentHand = game.sceneCards.hands[playerName];
         const playedCard = currentHand.find(c => c.id === cardId);
         
-        if (!playedCard) return data;
+        if (!playedCard) return game;
 
         // Remove card from hand
-        data.hands[playerName] = currentHand.filter(c => c.id !== cardId);
+        game.sceneCards.hands[playerName] = currentHand.filter(c => c.id !== cardId);
 
         // Initialize played array if it doesn't exist
-        if (!Array.isArray(data.played)) {
-          data.played = [];
+        if (!Array.isArray(game.sceneCards.played)) {
+          game.sceneCards.played = [];
         }
 
-        // Find the original card to preserve ownership
-        const originalCard = data.cards.find(c => c.id === cardId);
-        
-        // Add to played cards history, preserving the original playerId
-        data.played.push({
+        // Add to played cards history
+        game.sceneCards.played.push({
           playerId: playerName,
-          card: {
-            id: playedCard.id,
-            title: playedCard.title,
-            text: playedCard.text,
-            type: playedCard.type,
-            image: playedCard.image,
-            playerId: originalCard?.playerId || playedCard.playerId // Preserve original ownership
-          },
+          card: playedCard,
           timestamp: Date.now()
         });
 
-        // Add notification about played card
-        const timestamp = Date.now();
-        const characterName = playerCharacters[playerName.toLowerCase()] || playerName;
-        data.notifications = data.notifications || {};
-        data.notifications[timestamp] = {
-          type: 'scene_card_played',
-          timestamp,
-          text: `${characterName} spilte scenekortet "${playedCard.title}"`,
-          cardType: playedCard.type
+        // Get next director from the ordered list
+        const directorOrder = game.directorOrder || [];
+        
+        if (directorOrder.length > 0) {
+          const currentIndex = directorOrder.findIndex(p => p === game.currentDirector);
+          const nextIndex = (currentIndex + 1) % directorOrder.length;
+          const nextDirector = directorOrder[nextIndex];
+          
+          console.log('🎭 Director rotation:', {
+            currentDirector: game.currentDirector,
+            nextDirector
+          });
+          
+          game.currentDirector = nextDirector;
+        }
+
+        // Increment turn counter
+        game.currentTurn = (game.currentTurn || 1) + 1;
+
+        // Initialize turnHistory if it doesn't exist
+        if (!Array.isArray(game.turnHistory)) {
+          game.turnHistory = [];
+        }
+
+        // Create turn log
+        const turnLog = {
+          turn: game.currentTurn,
+          timestamp: Date.now(),
+          act: game.sceneCards.currentAct,
+          sceneCard: {
+            id: playedCard.id,
+            title: playedCard.title,
+            type: playedCard.type,
+            playedBy: playerName
+          },
+          director: game.currentDirector,
+          dramaCards: {
+            played: [],
+            discarded: []
+          }
         };
 
-        return data;
+        console.log('📝 Adding turn log:', turnLog);
+        game.turnHistory.push(turnLog);
+
+        return game;
+      });
+
+      // Verify the write by reading back
+      const gameSnapshot = await get(ref(db, `games/${gameId}`));
+      const updatedGame = gameSnapshot.val();
+      console.log('✅ Turn log verification:', {
+        turnHistoryExists: Boolean(updatedGame.turnHistory),
+        lastTurn: updatedGame.turnHistory?.[updatedGame.turnHistory.length - 1]
       });
 
       // Draw a new card
       await fillHand();
     } catch (err) {
-      console.error('Failed to play card:', err);
+      console.error('❌ Failed to play card:', err);
       setError('Kunne ikke spille kortet. Prøv igjen.');
     } finally {
       setActioningCards(prev => {
@@ -593,21 +604,15 @@ export default function ScenekortTab({ gameState }) {
     
     const { cards, played, currentAct, activeCards } = gameState.sceneCards;
     
-    // Skip if we don't have the necessary data
     if (!cards || !played || !activeCards) return;
     
-    // Get the IDs of cards that have been played and are active in current act
     const playedActiveCardIds = played
       .map(p => p.card.id)
       .filter(id => activeCards.includes(id));
     
-    // Check if all active cards for this act have been played
     if (playedActiveCardIds.length === activeCards.length && currentAct < 3) {
       console.log('🎬 All active cards for current act have been played, progressing to next act');
-      console.log('📊 Active cards:', activeCards.length);
-      console.log('🎭 Played active cards:', playedActiveCardIds.length);
       
-      // Automatically progress to next act
       runTransaction(ref(db, `games/${gameId}`), (game) => {
         if (!game) return game;
         
@@ -620,6 +625,20 @@ export default function ScenekortTab({ gameState }) {
           return String(card[actKey] || '').toUpperCase() === "TRUE" || card[actKey] === true;
         });
         
+        // Add act progression to turn history
+        game.turnHistory = game.turnHistory || [];
+        const actProgressionLog = {
+          turn: game.currentTurn,
+          timestamp: Date.now(),
+          type: 'act_progression',
+          previousAct: game.sceneCards.currentAct,
+          newAct: nextAct,
+          activeCards: nextActCards.length
+        };
+        
+        console.log('📝 Writing act progression to turn history:', actProgressionLog);
+        game.turnHistory.push(actProgressionLog);
+        
         // Update scene cards state
         game.sceneCards = {
           ...game.sceneCards,
@@ -629,56 +648,21 @@ export default function ScenekortTab({ gameState }) {
           played: [] // Clear played cards for new act
         };
         
-        // Add notification about act change
-        const timestamp = Date.now();
-        const notification = {
-          type: 'act_change',
-          actNumber: nextAct,
-          timestamp,
-          text: `Akt ${nextAct} har begynt! Alle spillere får nye kort.`
-        };
-        
-        // Add to notifications list
-        game.notifications = game.notifications || {};
-        game.notifications[timestamp] = notification;
-        
-        // Also clear drama card hands and played cards for the new act
-        if (game.dramaCards) {
-          game.dramaCards = {
-            ...game.dramaCards,
-            hands: {}, // Clear all hands
-            played: {} // Clear played cards
-          };
-        }
+        // Reset turn counter and director for new act
+        game.currentTurn = 1;
+        game.currentDirector = null;
+
+        console.log('🎮 Updated game state after act progression:', {
+          currentAct: nextAct,
+          activeCards: nextActCards.length,
+          turnHistory: game.turnHistory.length,
+          lastLog: actProgressionLog
+        });
         
         return game;
       });
     }
   }, [gameState?.sceneCards?.played?.length, gameId]);
-
-  // Update the notifications monitoring effect
-  useEffect(() => {
-    if (!gameId) return;
-    
-    const notificationsRef = ref(db, `games/${gameId}/notifications`);
-    const unsubscribe = onValue(notificationsRef, (snapshot) => {
-      const notifications = snapshot.val();
-      if (notifications) {
-        // Find the most recent act change notification
-        const actChangeNotifications = Object.values(notifications)
-          .filter(n => n.type === 'act_change')
-          .sort((a, b) => b.timestamp - a.timestamp);
-        
-        if (actChangeNotifications.length > 0) {
-          const latestActChange = actChangeNotifications[0];
-          // Show notification using the new component
-          setNotification(latestActChange.text);
-        }
-      }
-    });
-    
-    return () => unsubscribe();
-  }, [gameId]);
 
   // Initial setup
   useEffect(() => {
@@ -780,16 +764,16 @@ export default function ScenekortTab({ gameState }) {
 
   return (
     <div className="p-4">
-      {notification && (
-        <Notification
-          message={notification}
-          onClose={() => setNotification(null)}
-        />
-      )}
       <div className="mb-4">
         <div className="flex justify-between items-center mb-4">
           <div>
             <h2 className="text-xl font-bold">Dine Scenekort ({hand.length}/{HAND_SIZE})</h2>
+            {!gameState?.gameStarted && (
+              <p className="text-sm text-gray-500 mt-1">Venter på at spillet skal starte...</p>
+            )}
+            {gameState?.gameStarted && gameState.currentDirector !== playerName && (
+              <p className="text-sm text-gray-500 mt-1">Venter på din tur som regissør...</p>
+            )}
           </div>
         </div>
       </div>
@@ -836,7 +820,6 @@ export default function ScenekortTab({ gameState }) {
                   exactMatch: playerCharacters[card.playerId],
                   keyExists: card.playerId.toLowerCase() in playerCharacters,
                 };
-                console.log('🎴 Card ownership check:', ownershipDetails);
                 const characterName = playerCharacters[card.playerId.toLowerCase()];
                 return characterName && (
                   <div className="text-sm text-gray-400 text-right italic">
@@ -847,7 +830,7 @@ export default function ScenekortTab({ gameState }) {
               <div className="flex justify-end">
                 <button 
                   onClick={() => playCard(card.id)}
-                  disabled={actioningCards.has(card.id)}
+                  disabled={actioningCards.has(card.id) || !gameState?.gameStarted || gameState.currentDirector !== playerName}
                   className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:bg-gray-400"
                 >
                   {actioningCards.has(card.id) ? 'Spiller...' : 'Spill'}

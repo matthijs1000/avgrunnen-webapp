@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { db } from './firebaseConfig';
 import { ref, runTransaction, get, set, onValue } from 'firebase/database';
 import { fetchDramaCards } from './utils/sheetsConfig';
-import { Notification } from './components/ui/notification';
 
 const HAND_SIZE = 5;
 
@@ -12,7 +11,6 @@ export default function DramakortTab({ gameState }) {
   const [error, setError] = useState(null);
   const [actioningCards, setActioningCards] = useState(new Set());
   const [isInitialized, setIsInitialized] = useState(false);
-  const [notification, setNotification] = useState(null);
 
   const playerName = localStorage.getItem('name');
   const gameId = localStorage.getItem('gameId');
@@ -151,47 +149,96 @@ export default function DramakortTab({ gameState }) {
   const playCard = async (cardId) => {
     setActioningCards(prev => new Set([...prev, cardId]));
     try {
+      console.log('🎭 Starting to play drama card:', cardId);
       await runTransaction(ref(db, `games/${gameId}`), (game) => {
-        if (!game?.dramaCards?.hands?.[playerName]) return game;
+        if (!game?.dramaCards?.hands?.[playerName]) {
+          console.warn('❌ No drama cards hand found for player:', playerName);
+          return game;
+        }
 
         const currentHand = game.dramaCards.hands[playerName];
         const playedCard = currentHand.find(c => c.id === cardId);
         
-        if (!playedCard) return game;
+        if (!playedCard) {
+          console.warn('❌ Card not found in hand:', cardId);
+          return game;
+        }
+
+        console.log('📝 Found card to play:', playedCard);
+
+        // Create a deep copy of the game state to modify
+        const updatedGame = JSON.parse(JSON.stringify(game));
 
         // Remove card from hand
-        game.dramaCards.hands[playerName] = currentHand.filter(c => c.id !== cardId);
+        updatedGame.dramaCards.hands[playerName] = currentHand.filter(c => c.id !== cardId);
 
         // Initialize played object if it doesn't exist
-        if (!game.dramaCards.played) {
-          game.dramaCards.played = {};
+        if (!updatedGame.dramaCards.played) {
+          updatedGame.dramaCards.played = {};
         }
 
         // Add to played cards history
         const timestamp = Date.now();
-        game.dramaCards.played[timestamp] = {
+        updatedGame.dramaCards.played[timestamp] = {
           playerId: playerName,
           card: playedCard,
           timestamp
         };
 
-        // Add notification about played card
-        const characterName = character || playerName;
-        game.notifications = game.notifications || {};
-        game.notifications[timestamp] = {
-          type: 'drama_card_played',
-          timestamp,
-          text: `${characterName} spilte dramakortet "${playedCard.title}"`,
-          cardType: playedCard.type
-        };
+        console.log('🎲 Current turn history:', updatedGame.turnHistory);
+        // Update current turn's drama cards history
+        if (updatedGame.turnHistory && updatedGame.turnHistory.length > 0) {
+          const currentTurn = updatedGame.turnHistory[updatedGame.turnHistory.length - 1];
+          console.log('📝 Adding drama card to current turn:', currentTurn.turn);
+          
+          // Initialize arrays if they don't exist
+          if (!currentTurn.dramaCards) {
+            currentTurn.dramaCards = { played: [], discarded: [] };
+          }
+          if (!Array.isArray(currentTurn.dramaCards.played)) {
+            currentTurn.dramaCards.played = [];
+          }
+          
+          currentTurn.dramaCards.played.push({
+            id: playedCard.id,
+            title: playedCard.title,
+            type: playedCard.type,
+            playedBy: playerName,
+            timestamp
+          });
+          
+          console.log('✅ Updated turn history:', {
+            turn: currentTurn.turn,
+            dramaCardsPlayed: currentTurn.dramaCards.played.length
+          });
+        } else {
+          console.warn('⚠️ No current turn found in turn history');
+        }
 
-        return game;
+        console.log('🔄 Returning updated game state with drama cards:', {
+          playedCardsCount: Object.keys(updatedGame.dramaCards.played).length,
+          turnHistoryLength: updatedGame.turnHistory?.length,
+          lastTurnDramaCards: updatedGame.turnHistory?.[updatedGame.turnHistory.length - 1]?.dramaCards
+        });
+
+        return updatedGame;
+      });
+
+      // Verify the write
+      const gameSnapshot = await get(ref(db, `games/${gameId}`));
+      const updatedGame = gameSnapshot.val();
+      const lastTurn = updatedGame.turnHistory?.[updatedGame.turnHistory.length - 1];
+      console.log('✅ Turn log verification:', {
+        turnHistoryExists: Boolean(updatedGame.turnHistory),
+        lastTurnNumber: lastTurn?.turn,
+        dramaCardsInLastTurn: lastTurn?.dramaCards?.played?.length || 0,
+        totalPlayedDramaCards: Object.keys(updatedGame.dramaCards?.played || {}).length
       });
 
       // Draw a new card
       await fillHand();
     } catch (err) {
-      console.error('Failed to play card:', err);
+      console.error('❌ Failed to play card:', err);
       setError('Kunne ikke spille kortet. Prøv igjen.');
     } finally {
       setActioningCards(prev => {
@@ -202,28 +249,108 @@ export default function DramakortTab({ gameState }) {
     }
   };
 
-  // Add effect to monitor notifications
-  useEffect(() => {
-    if (!gameId) return;
-    
-    const notificationsRef = ref(db, `games/${gameId}/notifications`);
-    const unsubscribe = onValue(notificationsRef, (snapshot) => {
-      const notifications = snapshot.val();
-      if (notifications) {
-        // Find the most recent card play notifications
-        const cardNotifications = Object.values(notifications)
-          .filter(n => n.type === 'drama_card_played' || n.type === 'scene_card_played')
-          .sort((a, b) => b.timestamp - a.timestamp);
-        
-        if (cardNotifications.length > 0) {
-          const latestNotification = cardNotifications[0];
-          setNotification(latestNotification.text);
+  const discardCard = async (cardId) => {
+    setActioningCards(prev => new Set([...prev, cardId]));
+    try {
+      console.log('🗑️ Starting to discard drama card:', cardId);
+      await runTransaction(ref(db, `games/${gameId}`), (game) => {
+        if (!game?.dramaCards?.hands?.[playerName]) {
+          console.warn('❌ No drama cards hand found for player:', playerName);
+          return game;
         }
-      }
-    });
-    
-    return () => unsubscribe();
-  }, [gameId]);
+
+        const currentHand = game.dramaCards.hands[playerName];
+        const discardedCard = currentHand.find(c => c.id === cardId);
+        
+        if (!discardedCard) {
+          console.warn('❌ Card not found in hand:', cardId);
+          return game;
+        }
+
+        console.log('📝 Found card to discard:', discardedCard);
+
+        // Create a deep copy of the game state to modify
+        const updatedGame = JSON.parse(JSON.stringify(game));
+
+        // Remove card from hand
+        updatedGame.dramaCards.hands[playerName] = currentHand.filter(c => c.id !== cardId);
+
+        // Initialize discarded array if it doesn't exist
+        if (!updatedGame.dramaCards.discarded) {
+          updatedGame.dramaCards.discarded = [];
+        }
+
+        const timestamp = Date.now();
+        // Add to discard history
+        updatedGame.dramaCards.discarded.push({
+          playerId: playerName,
+          card: discardedCard,
+          timestamp
+        });
+
+        console.log('🎲 Current turn history:', updatedGame.turnHistory);
+        // Update current turn's drama cards history
+        if (updatedGame.turnHistory && updatedGame.turnHistory.length > 0) {
+          const currentTurn = updatedGame.turnHistory[updatedGame.turnHistory.length - 1];
+          console.log('📝 Adding discarded drama card to current turn:', currentTurn.turn);
+          
+          // Initialize arrays if they don't exist
+          if (!currentTurn.dramaCards) {
+            currentTurn.dramaCards = { played: [], discarded: [] };
+          }
+          if (!Array.isArray(currentTurn.dramaCards.discarded)) {
+            currentTurn.dramaCards.discarded = [];
+          }
+          
+          currentTurn.dramaCards.discarded.push({
+            id: discardedCard.id,
+            title: discardedCard.title,
+            type: discardedCard.type,
+            discardedBy: playerName,
+            timestamp
+          });
+          
+          console.log('✅ Updated turn history:', {
+            turn: currentTurn.turn,
+            dramaCardsDiscarded: currentTurn.dramaCards.discarded.length
+          });
+        } else {
+          console.warn('⚠️ No current turn found in turn history');
+        }
+
+        console.log('🔄 Returning updated game state with discarded cards:', {
+          discardedCardsCount: updatedGame.dramaCards.discarded.length,
+          turnHistoryLength: updatedGame.turnHistory?.length,
+          lastTurnDramaCards: updatedGame.turnHistory?.[updatedGame.turnHistory.length - 1]?.dramaCards
+        });
+
+        return updatedGame;
+      });
+
+      // Verify the write
+      const gameSnapshot = await get(ref(db, `games/${gameId}`));
+      const updatedGame = gameSnapshot.val();
+      const lastTurn = updatedGame.turnHistory?.[updatedGame.turnHistory.length - 1];
+      console.log('✅ Turn log verification:', {
+        turnHistoryExists: Boolean(updatedGame.turnHistory),
+        lastTurnNumber: lastTurn?.turn,
+        dramaCardsInLastTurn: lastTurn?.dramaCards?.discarded?.length || 0,
+        totalDiscardedDramaCards: updatedGame.dramaCards?.discarded?.length || 0
+      });
+
+      // Draw a new card
+      await fillHand();
+    } catch (err) {
+      console.error('❌ Failed to discard card:', err);
+      setError('Kunne ikke forkaste kortet. Prøv igjen.');
+    } finally {
+      setActioningCards(prev => {
+        const next = new Set(prev);
+        next.delete(cardId);
+        return next;
+      });
+    }
+  };
 
   if (error) {
     return (
@@ -241,13 +368,6 @@ export default function DramakortTab({ gameState }) {
 
   return (
     <div className="p-4">
-      {notification && (
-        <Notification
-          message={notification}
-          onClose={() => setNotification(null)}
-          duration={3000} // Shorter duration for card play notifications
-        />
-      )}
       <div className="mb-4">
         <h2 className="text-xl font-bold mb-2">Dramakort ({hand.length}/{HAND_SIZE})</h2>
       </div>
@@ -269,13 +389,22 @@ export default function DramakortTab({ gameState }) {
                 Type: {card.type}
               </p>
             )}
-            <button
-              onClick={() => playCard(card.id)}
-              disabled={actioningCards.has(card.id)}
-              className="w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-            >
-              {actioningCards.has(card.id) ? 'Spiller...' : 'Spill'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => playCard(card.id)}
+                disabled={actioningCards.has(card.id)}
+                className="flex-1 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                {actioningCards.has(card.id) ? 'Spiller...' : 'Spill'}
+              </button>
+              <button
+                onClick={() => discardCard(card.id)}
+                disabled={actioningCards.has(card.id)}
+                className="flex-1 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50"
+              >
+                {actioningCards.has(card.id) ? 'Forkaster...' : 'Forkast'}
+              </button>
+            </div>
           </li>
         ))}
       </ul>
