@@ -107,13 +107,31 @@ export default function RollerTab({ gameState }) {
         return matches;
       });
 
-      console.log(`Found ${playerCards.length} cards for ${player.name}:`, 
-        playerCards.map(c => ({ title: c.title, playerId: c.playerId }))
+      // Sort cards by type in the specified order
+      const sortedCards = playerCards.sort((a, b) => {
+        const typeOrder = {
+          'goal': 1,
+          'relationship': 2,
+          'exploration': 3,
+          'plan': 4
+        };
+        
+        const typeA = (a.type || '').toLowerCase();
+        const typeB = (b.type || '').toLowerCase();
+        
+        const orderA = typeOrder[typeA] || 999;
+        const orderB = typeOrder[typeB] || 999;
+        
+        return orderA - orderB;
+      });
+
+      console.log(`Found ${sortedCards.length} cards for ${player.name}:`, 
+        sortedCards.map(c => ({ title: c.title, type: c.type, playerId: c.playerId }))
       );
 
       return {
         ...player,
-        cards: playerCards
+        cards: sortedCards
       };
     });
 
