@@ -10,6 +10,7 @@ import { useTheme } from '../../ThemeContext';
  */
 export function DramaCardItem({ card, isPlaying, onPreview, onDiscard }) {
   const { theme } = useTheme();
+  const isLightTheme = theme === 'norway-1946' || theme === 'colombia-1972';
   
   // Drama cards have their own distinct style per theme
   const themeStyles = {
@@ -38,12 +39,28 @@ export function DramaCardItem({ card, isPlaying, onPreview, onDiscard }) {
   const styles = themeStyles[theme] || themeStyles.lovecraft;
 
   return (
-    <li className={`${styles.card} mb-4 relative overflow-hidden p-6 rounded-xl shadow-lg text-left`}>
+    <li className={`theme-${theme} mb-4 relative overflow-hidden p-6 rounded-xl shadow-lg text-left`}
+        style={{
+          backgroundColor: 'var(--drama-card-bg)',
+          borderRight: '4px solid var(--drama-card-border)',
+          boxShadow: '0 4px 6px -1px var(--theme-shadow), 0 2px 4px -2px var(--theme-shadow)'
+        }}>
       <div>
-        <h3 className={`text-xl font-bold font-cinzel tracking-wide ${styles.title} drop-shadow-lg text-left`}>{card.title}</h3>
+        <h3 className="text-xl font-bold tracking-wide drop-shadow-lg text-left"
+            style={{ 
+              fontFamily: 'var(--font-heading)',
+              color: 'var(--text-heading)'
+            }}>
+          {card.title}
+        </h3>
       </div>
       {card.text && (
-        <p className={`text-base font-garamond ${styles.text} leading-relaxed mb-3 text-left`} style={{textShadow: '0 1px 2px #18181b'}}>
+        <p className="text-base leading-relaxed mb-3 text-left"
+           style={{
+             fontFamily: 'var(--font-body)',
+             color: 'var(--text-main)',
+             textShadow: isLightTheme ? 'none' : '0 1px 2px rgba(0,0,0,0.2)'
+           }}>
           {card.text.split(/\n/).map((line, idx, arr) => (
             <React.Fragment key={idx}>
               {line}
@@ -53,27 +70,50 @@ export function DramaCardItem({ card, isPlaying, onPreview, onDiscard }) {
         </p>
       )}
       {card.type && (
-        <p className="text-sm text-muted-foreground mb-3 text-left">Type: {card.type}</p>
+        <p className="text-sm mb-3 text-left" style={{ color: 'var(--text-main)', opacity: 0.8 }}>
+          Type: {card.type}
+        </p>
       )}
-      <div className="flex justify-end mt-auto">
+      <div className="flex justify-end mt-auto gap-2">
         <button
           onClick={() => onDiscard(card.id)}
           disabled={isPlaying}
-          className="bg-[#2a2323] border border-[#3f2f2f] text-[#e0d6b9] px-4 py-2 rounded font-cinzel tracking-wider shadow hover:bg-[#1b1818] hover:text-[#f5e9c8] hover:border-[#6b4f2b] disabled:bg-gray-800 disabled:text-gray-500 disabled:border-gray-700 transition-all duration-200"
+          className="px-4 py-2 rounded tracking-wider shadow transition-all duration-200 disabled:opacity-50 hover:scale-[1.02]"
+          style={{
+            backgroundColor: 'var(--button-bg)',
+            borderColor: 'var(--button-border)',
+            color: 'var(--button-text)',
+            border: '1px solid var(--button-border)',
+            fontFamily: 'var(--font-heading)',
+          }}
         >
           {isPlaying ? 'Forkaster...' : 'Forkast'}
         </button>
         <button
           onClick={() => onPreview(card)}
           disabled={isPlaying}
-          className="ml-2 bg-[#23232a] border border-[#3b2f2f] text-[#e0d6b9] px-6 py-2 rounded font-cinzel tracking-wider shadow hover:bg-[#18181b] hover:text-[#f5e9c8] hover:border-[#6b4f2b] disabled:bg-gray-800 disabled:text-gray-500 disabled:border-gray-700 transition-all duration-200"
-          style={{letterSpacing: '0.08em'}}
+          className="px-6 py-2 rounded tracking-wider shadow transition-all duration-200 disabled:opacity-50 hover:scale-[1.02]"
+          style={{
+            backgroundColor: 'var(--button-bg)',
+            borderColor: 'var(--button-border)',
+            color: 'var(--button-text)',
+            border: '1px solid var(--button-border)',
+            fontFamily: 'var(--font-heading)',
+            letterSpacing: '0.08em'
+          }}
         >
           {isPlaying ? 'Spiller...' : 'Spill'}
         </button>
       </div>
-      {/* Subtle vignette overlay */}
-      <div style={{position:'absolute',inset:0,pointerEvents:'none',boxShadow:'0 0 40px 8px #18181b99 inset'}} />
+      {/* Subtle vignette overlay only for dark themes */}
+      {!isLightTheme && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          boxShadow: '0 0 40px 8px rgba(0,0,0,0.4) inset'
+        }} />
+      )}
     </li>
   );
 } 

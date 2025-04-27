@@ -15,6 +15,15 @@
   --font-heading: 'Cinzel', serif;
   --font-body: 'EB Garamond', serif;
   --texture: url('https://www.transparenttextures.com/patterns/old-mat.png');
+  --drama-card-bg: rgba(127, 29, 29, 0.25);
+  --drama-card-border: #7f1d1d;
+  --button-bg: #23232a;
+  --button-border: #3b2f2f;
+  --button-text: #e0d6b9;
+  --button-hover-bg: #18181b;
+  --button-hover-text: #f5e9c8;
+  --button-hover-border: #6b4f2b;
+  --theme-shadow: rgba(0, 0, 0, 0.5);
 }
 .theme-russia-1984 {
   --bg-main: #23272e;
@@ -26,17 +35,35 @@
   --font-heading: 'Roboto Mono', monospace;
   --font-body: 'Roboto Mono', monospace;
   --texture: url('https://www.transparenttextures.com/patterns/concrete-wall.png');
+  --drama-card-bg: rgba(185, 28, 28, 0.2);
+  --drama-card-border: #991b1b;
+  --button-bg: #1a1f2e;
+  --button-border: #2a3040;
+  --button-text: #c0c7d5;
+  --button-hover-bg: #141722;
+  --button-hover-text: #dde4f2;
+  --button-hover-border: #3d4b66;
+  --theme-shadow: rgba(0, 0, 0, 0.6);
 }
 .theme-norway-1946 {
   --bg-main: #e5e7eb;
   --bg-card: linear-gradient(135deg, #f3f4f6 80%, #d1d5db 100%);
   --card-border: #4b5563;
-  --text-main: #23272e;
+  --text-main: #1e293b;
   --text-heading: #1e293b;
   --accent: #256d1b;
   --font-heading: 'Cinzel', serif;
   --font-body: 'EB Garamond', serif;
   --texture: url('https://www.transparenttextures.com/patterns/wood-pattern.png');
+  --drama-card-bg: rgba(239, 68, 68, 0.1);
+  --drama-card-border: #b91c1c;
+  --button-bg: #4a5b61;
+  --button-border: #374448;
+  --button-text: #e5e5e5;
+  --button-hover-bg: #3d4c51;
+  --button-hover-text: #ffffff;
+  --button-hover-border: #2b3538;
+  --theme-shadow: rgba(0, 0, 0, 0.2);
 }
 .theme-colombia-1972 {
   --bg-main: #fef9c3;
@@ -48,6 +75,15 @@
   --font-heading: 'Montserrat', sans-serif;
   --font-body: 'Montserrat', sans-serif;
   --texture: url('https://www.transparenttextures.com/patterns/diamond-upholstery.png');
+  --drama-card-bg: rgba(239, 68, 68, 0.15);
+  --drama-card-border: #dc2626;
+  --button-bg: #2a1f1a;
+  --button-border: #3d2b24;
+  --button-text: #e0d6b9;
+  --button-hover-bg: #1f1714;
+  --button-hover-text: #f5e9c8;
+  --button-hover-border: #4d372e;
+  --theme-shadow: rgba(0, 0, 0, 0.4);
 }
 
 body, #root {

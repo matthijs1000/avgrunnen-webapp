@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { db } from './firebaseConfig';
+import { useTheme } from './ThemeContext';
 import {
   ref,
   get,
@@ -23,6 +24,7 @@ export default function ScenekortTab({ gameState }) {
   const [hand, setHand] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { theme } = useTheme();
   const [deckStatus, setDeckStatus] = useState({
     total: 0,
     available: 0,
@@ -698,7 +700,7 @@ export default function ScenekortTab({ gameState }) {
 
       {previewCard && !showDirector && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
-          <div className="bg-card text-card-foreground rounded-xl shadow-lg max-w-lg w-full p-8 relative">
+          <div className={`theme-${theme} bg-card text-card-foreground rounded-xl shadow-lg max-w-lg w-full p-8 relative`}>
             <button
               className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl font-bold"
               onClick={() => setPreviewCard(null)}
@@ -783,7 +785,7 @@ export default function ScenekortTab({ gameState }) {
 
       {showForinger && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
-          <div className="bg-card text-card-foreground rounded-xl shadow-lg max-w-xl w-full p-8 relative overflow-y-auto max-h-[90vh]">
+          <div className={`theme-${theme} bg-card text-card-foreground rounded-xl shadow-lg max-w-xl w-full p-8 relative overflow-y-auto max-h-[90vh]`}>
             <button
               className="absolute top-2 right-2 text-muted-foreground hover:text-foreground text-2xl font-bold"
               onClick={() => setShowForinger(false)}

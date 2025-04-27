@@ -56,50 +56,61 @@ export function SceneCardItem({ card, playerCharacters, isPlaying, canPlay, onPl
   const cardStyle = typeStyles[typeKey] || typeStyles.default;
 
   return (
-    <li key={card.id} className={`lovecraft-card ${cardStyle} mb-4 relative overflow-hidden p-6 rounded-xl shadow-lg text-left`}>
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex-grow">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold font-cinzel tracking-wide text-[#e0d6b9] drop-shadow-lg text-left">{card.title}</h3>
-            <TypeIcon type={card.type} className="ml-4 flex-shrink-0" />
+    <li key={card.id} className={`theme-${theme} ${cardStyle} mb-4 relative overflow-hidden p-6 rounded-xl shadow-lg text-left`}>
+      <div className="absolute inset-0 pointer-events-none" style={{ backgroundColor: 'var(--theme-overlay)' }} />
+      <div className="relative z-10">
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex-grow">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold tracking-wide text-[#e0d6b9] drop-shadow-lg text-left" style={{ fontFamily: 'var(--font-heading)' }}>{card.title}</h3>
+              <TypeIcon type={card.type} className="ml-4 flex-shrink-0" />
+            </div>
+            {card.playerId && (() => {
+              const characterName = playerCharacters[card.playerId.toLowerCase()];
+              return characterName && (
+                <p className="text-sm text-[#e7e5e4] mb-2" style={{ fontFamily: 'var(--font-body)' }}>Rolle: {characterName}</p>
+              );
+            })()}
           </div>
-          {card.playerId && (() => {
-            const characterName = playerCharacters[card.playerId.toLowerCase()];
-            return characterName && (
-              <p className="text-sm text-gray-400 font-cinzel tracking-wide text-left mt-1">
-                Rolle: {characterName}
-              </p>
-            );
-          })()}
         </div>
-      </div>
-      {card.text && (
-        <p className="text-base font-garamond text-[#e7e5e4] leading-relaxed mb-3 text-left" style={{textShadow: '0 1px 2px #18181b'}}>{card.text}</p>
-      )}
-      {card.image && (
-        <div className="mb-3 rounded-md overflow-hidden shadow-sm">
-          <img
-            src={card.image}
-            alt={card.title}
-            className="w-full h-48 object-cover grayscale contrast-125 opacity-90 hover:scale-105 transition-transform duration-200 border border-gray-800"
-            onError={e => {
-              e.target.style.display = 'none';
+        {card.text && (
+          <p className="text-base leading-relaxed mb-3 text-left text-[#e7e5e4]" style={{ fontFamily: 'var(--font-body)' }}>
+            {card.text}
+          </p>
+        )}
+        {card.image && (
+          <div className="mb-3 rounded-md overflow-hidden shadow-sm">
+            <img
+              src={card.image}
+              alt={card.title}
+              className="w-full h-48 object-cover grayscale contrast-125 opacity-90 hover:scale-105 transition-transform duration-200 border border-gray-800"
+              onError={e => {
+                e.target.style.display = 'none';
+              }}
+            />
+          </div>
+        )}
+        <div className="flex justify-end mt-auto">
+          <button
+            onClick={() => onPlay(card.id)}
+            disabled={isPlaying || !canPlay}
+            className="px-6 py-2 rounded tracking-wider shadow transition-all duration-200 disabled:bg-gray-800 disabled:text-gray-500 disabled:border-gray-700"
+            style={{
+              backgroundColor: 'var(--button-bg)',
+              borderColor: 'var(--button-border)',
+              color: 'var(--button-text)',
+              border: '1px solid var(--button-border)',
+              letterSpacing: '0.08em',
+              fontFamily: 'var(--font-heading)',
+              '--tw-hover-bg': 'var(--button-hover-bg)',
+              '--tw-hover-text': 'var(--button-hover-text)',
+              '--tw-hover-border': 'var(--button-hover-border)',
             }}
-          />
+          >
+            {isPlaying ? 'Spiller...' : 'Spill'}
+          </button>
         </div>
-      )}
-      <div className="flex justify-end mt-auto">
-        <button
-          onClick={() => onPlay(card.id)}
-          disabled={isPlaying || !canPlay}
-          className="bg-[#23232a] border border-[#3b2f2f] text-[#e0d6b9] px-6 py-2 rounded font-cinzel tracking-wider shadow hover:bg-[#18181b] hover:text-[#f5e9c8] hover:border-[#6b4f2b] disabled:bg-gray-800 disabled:text-gray-500 disabled:border-gray-700 transition-all duration-200"
-          style={{letterSpacing: '0.08em'}}
-        >
-          {isPlaying ? 'Spiller...' : 'Spill'}
-        </button>
       </div>
-      {/* Subtle vignette overlay for extra creepiness */}
-      <div style={{position:'absolute',inset:0,pointerEvents:'none',boxShadow:'0 0 40px 8px #18181b99 inset'}} />
     </li>
   );
 } 

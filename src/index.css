@@ -144,3 +144,61 @@
   color: #8a8a8a;
   cursor: not-allowed;
 }
+
+/* Theme-specific styles */
+.theme-lovecraft {
+  --theme-overlay: rgba(0, 0, 0, 0.2);
+  --theme-shadow: rgba(0, 0, 0, 0.5);
+  --button-bg: #23232a;
+  --button-border: #3b2f2f;
+  --button-text: #e0d6b9;
+  --button-hover-bg: #18181b;
+  --button-hover-text: #f5e9c8;
+  --button-hover-border: #6b4f2b;
+  box-shadow: 0 0 12px var(--theme-shadow);
+}
+
+.theme-russia-1984 {
+  --theme-overlay: rgba(26, 31, 46, 0.4);
+  --theme-shadow: rgba(0, 0, 0, 0.6);
+  --button-bg: #1a1f2e;
+  --button-border: #2a3040;
+  --button-text: #c0c7d5;
+  --button-hover-bg: #141722;
+  --button-hover-text: #dde4f2;
+  --button-hover-border: #3d4b66;
+  box-shadow: 0 0 12px var(--theme-shadow);
+}
+
+.theme-norway-1946 {
+  --theme-overlay: rgba(229, 229, 229, 0.1);
+  --theme-shadow: rgba(0, 0, 0, 0.2);
+  --button-bg: #4a5b61;
+  --button-border: #374448;
+  --button-text: #e5e5e5;
+  --button-hover-bg: #3d4c51;
+  --button-hover-text: #ffffff;
+  --button-hover-border: #2b3538;
+  box-shadow: 0 0 12px var(--theme-shadow);
+}
+
+.theme-colombia-1972 {
+  --theme-overlay: rgba(42, 31, 26, 0.2);
+  --theme-shadow: rgba(0, 0, 0, 0.4);
+  --button-bg: #2a1f1a;
+  --button-border: #3d2b24;
+  --button-text: #e0d6b9;
+  --button-hover-bg: #1f1714;
+  --button-hover-text: #f5e9c8;
+  --button-hover-border: #4d372e;
+  box-shadow: 0 0 12px var(--theme-shadow);
+}
+
+/* Add this after the theme styles */
+button:not(:disabled):hover {
+  background-color: var(--button-hover-bg) !important;
+  color: var(--button-hover-text) !important;
+  border-color: var(--button-hover-border) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px var(--theme-shadow), 0 2px 4px -2px var(--theme-shadow);
+}
